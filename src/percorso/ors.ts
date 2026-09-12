@@ -1,4 +1,5 @@
 import type { Coord, MotoreRouting, PassoItinerario, PercorsoGrezzo } from './tipi'
+import { chiedi, ErroreRete } from './rete'
 
 const BASE = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson'
 
@@ -51,9 +52,11 @@ export const ors: MotoreRouting = {
   richiedeChiave: true,
 
   async calcola(punti: Coord[], chiave?: string): Promise<PercorsoGrezzo> {
-    if (!chiave) throw new Error('Serve una chiave OpenRouteService')
-    const risposta = await fetch(BASE, {
+    if (!chiave) throw new ErroreRete('servizio', 'Serve una chiave OpenRouteService.')
+    const risposta = await chiedi(BASE, {
       method: 'POST',
+      nomeServizio: 'OpenRouteService',
+      attesaMassimaMs: 30000,
       headers: { Authorization: chiave, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         coordinates: punti.map((p) => [p.lng, p.lat]),
@@ -63,13 +66,12 @@ export const ors: MotoreRouting = {
       }),
     })
     const dati = (await risposta.json()) as RispostaOrs
-    if (!risposta.ok) {
-      const messaggio =
-        typeof dati.error === 'string' ? dati.error : (dati.error?.message ?? risposta.statusText)
-      throw new Error(`OpenRouteService: ${messaggio}`)
-    }
     const tratta = dati.features?.[0]
-    if (!tratta) throw new Error('OpenRouteService non ha trovato un percorso')
+    if (!tratta) {
+      const messaggio =
+        typeof dati.error === 'string' ? dati.error : (dati.error?.message ?? 'nessun percorso')
+      throw new ErroreRete('servizio', `OpenRouteService: ${messaggio}.`)
+    }
 
     const geometria = tratta.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }))
     const passi: PassoItinerario[] = []

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { percorsoInCache, salvaPercorso } from '../db/db'
 import { risolviPercorso, type AvanzamentoPercorso, type Luogo, type PercorsoRisolto } from '../percorso'
+import { ErroreRete, type CausaRete } from '../percorso/rete'
 import { MOTORI } from '../percorso'
 
 export type ModoInserimento = 'percorso' | 'manuale'
@@ -14,6 +15,8 @@ type StatoPercorso = {
   chiaveOrs: string
   caricamento: AvanzamentoPercorso | null
   errore: string | null
+  /** Perché è fallito: decide se ha senso proporre di riprovare. */
+  causaErrore: CausaRete | null
   imposta: (patch: Partial<Omit<StatoPercorso, 'risolvi' | 'imposta' | 'pulisci'>>) => void
   velocitaAutostrada: number
   risolvi: () => Promise<void>
@@ -39,13 +42,14 @@ export const usePercorso = create<StatoPercorso>((set, get) => ({
   velocitaAutostrada: 120,
   caricamento: null,
   errore: null,
+  causaErrore: null,
 
   imposta: (patch) => set(patch as Partial<StatoPercorso>),
 
   risolvi: async () => {
     const { partenza, arrivo, tappe, motore, chiaveOrs, velocitaAutostrada } = get()
     if (!partenza || !arrivo) return
-    set({ errore: null, caricamento: { fase: 'percorso' } })
+    set({ errore: null, causaErrore: null, caricamento: { fase: 'percorso' } })
 
     const chiave = chiaveCache(partenza, arrivo, tappe, motore, velocitaAutostrada)
     try {
@@ -66,7 +70,8 @@ export const usePercorso = create<StatoPercorso>((set, get) => ({
       set({ percorso, caricamento: null })
     } catch (e) {
       set({
-        errore: e instanceof Error ? e.message : 'Non sono riuscito a calcolare il percorso',
+        errore: e instanceof Error ? e.message : 'Non sono riuscito a calcolare il percorso.',
+        causaErrore: e instanceof ErroreRete ? e.causa : 'sconosciuta',
         caricamento: null,
       })
     }
@@ -85,5 +90,5 @@ export const usePercorso = create<StatoPercorso>((set, get) => ({
     }
   },
 
-  pulisci: () => set({ percorso: null, errore: null, caricamento: null }),
+  pulisci: () => set({ percorso: null, errore: null, causaErrore: null, caricamento: null }),
 }))

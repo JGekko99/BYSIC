@@ -1,4 +1,5 @@
 import type { Coord, MotoreRouting, PassoItinerario, PercorsoGrezzo } from './tipi'
+import { chiedi, ErroreRete } from './rete'
 
 const BASE = 'https://router.project-osrm.org/route/v1/driving'
 
@@ -37,11 +38,15 @@ export const osrm: MotoreRouting = {
   async calcola(punti: Coord[]): Promise<PercorsoGrezzo> {
     const coordinate = punti.map((p) => `${p.lng},${p.lat}`).join(';')
     const url = `${BASE}/${coordinate}?overview=full&geometries=geojson&steps=true`
-    const risposta = await fetch(url)
-    if (!risposta.ok) throw new Error(`OSRM ha risposto ${risposta.status}`)
+    const risposta = await chiedi(url, {
+      nomeServizio: 'Il servizio di percorso',
+      attesaMassimaMs: 30000,
+    })
     const dati = (await risposta.json()) as RispostaOsrm
     const percorso = dati.routes?.[0]
-    if (!percorso) throw new Error(`OSRM non ha trovato un percorso (${dati.code})`)
+    if (!percorso) {
+      throw new ErroreRete('servizio', `Nessun percorso trovato fra questi punti (${dati.code}).`)
+    }
 
     const passi: PassoItinerario[] = []
     let acc = 0

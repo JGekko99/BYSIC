@@ -1,4 +1,5 @@
 import type { Coord, PuntoQuotato } from './tipi'
+import { chiedi, ErroreRete } from './rete'
 
 const BASE = 'https://api.opentopodata.org/v1'
 /** EU-DEM a 25 m: copre tutta Europa ed è il più preciso per l'Italia. */
@@ -65,13 +66,15 @@ export async function quote(
   for (let b = 0; b < blocchi; b++) {
     const blocco = punti.slice(b * PER_RICHIESTA, (b + 1) * PER_RICHIESTA)
     const locations = blocco.map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|')
-    const risposta = await fetch(`${BASE}/${DATASET}?locations=${locations}`)
-    if (!risposta.ok) throw new Error(`OpenTopoData ha risposto ${risposta.status}`)
+    const risposta = await chiedi(`${BASE}/${DATASET}?locations=${locations}`, {
+      nomeServizio: 'Il servizio di altimetria',
+      attesaMassimaMs: 25000,
+    })
     const dati = (await risposta.json()) as {
       status: string
       results: Array<{ elevation: number | null }>
     }
-    if (dati.status !== 'OK') throw new Error(`OpenTopoData: ${dati.status}`)
+    if (dati.status !== 'OK') throw new ErroreRete('servizio', `Altimetria: ${dati.status}.`)
 
     dati.results.forEach((r, i) => {
       const punto = blocco[i]

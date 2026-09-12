@@ -224,6 +224,24 @@ Nota: con l'inserimento manuale lo stesso viaggio dava «obbligatoria 55%». Il 
 70% di §11 — salta fuori solo col profilo altimetrico vero, dove la salita è concentrata negli
 ultimi chilometri invece che spalmata.
 
+### Quando la rete non risponde
+
+Un `fetch` che fallisce dà messaggi diversi in ogni browser — «Failed to fetch» su Chrome,
+«NetworkError when attempting to fetch resource» su Firefox — e nessuno dei due dice all'utente se
+ha senso riprovare. `src/percorso/rete.ts` distingue quattro casi e risponde in modo diverso:
+
+| causa | cosa dice |
+|---|---|
+| `bloccato` | l'ambiente non lascia uscire le richieste (anteprima in un iframe, blocco pubblicità, VPN) → **riprovare non serve**, usa l'inserimento manuale |
+| `offline` | il dispositivo è offline → il piano si calcola comunque a mano |
+| `lento` | il servizio non ha risposto entro il tempo massimo → si può riprovare |
+| `servizio` | ha risposto con un errore, col codice → 429 significa rallentare |
+
+Ogni chiamata ha un tempo massimo. Senza, una richiesta che non risponde lascia l'indicatore di
+caricamento acceso per sempre: lo stesso difetto della pagina bianca, spostato di una schermata.
+
+Dentro un iframe l'avviso compare **prima** che si provi, non dopo il fallimento.
+
 ## Checkpoint e modalità viaggio
 
 Il sistema di checkpoint è una delle tre parti principali dell'app, non un dettaglio di

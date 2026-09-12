@@ -7,6 +7,7 @@ import ProfiloAltimetrico from '../components/ProfiloAltimetrico'
 import { useProfilo } from '../store/profilo'
 import { useViaggio } from '../store/viaggio'
 import { usePercorso } from '../store/percorso'
+import { dentroUnaCornice } from '../percorso/rete'
 import { massaTotale } from '../model/fisica'
 import { confronti, previsione, trattiDaManuale } from '../model/previsione'
 import { PIANIFICAZIONE } from '../config/vehicle'
@@ -59,6 +60,14 @@ export default function NuovoViaggio() {
         sottotitolo="Percorso e altimetria reali. Il motore predefinito è OSRM, che non richiede chiavi e restituisce sigle e uscite autostradali; le quote vengono da OpenTopoData (EU-DEM 25 m)."
       >
         <div className="space-y-4">
+          {dentroUnaCornice() && (
+            <Avviso tono="critico">
+              <strong>Qui il percorso reale non si può calcolare.</strong> Stai guardando l’app
+              dentro un’anteprima, che non lascia uscire le richieste verso i servizi di mappe e
+              altimetria. Usa l’inserimento manuale qui sotto — fa lo stesso lavoro con qualche
+              approssimazione in più — oppure apri l’app installata.
+            </Avviso>
+          )}
           <CercaLuogo
             etichetta="Partenza"
             valore={perc.partenza}
@@ -106,8 +115,10 @@ export default function NuovoViaggio() {
 
           {perc.errore && (
             <Avviso tono="critico">
-              {perc.errore} — puoi riprovare, oppure inserire il viaggio a mano qui sotto: il modo
-              manuale resta sempre disponibile.
+              {perc.errore}{' '}
+              {perc.causaErrore === 'bloccato' || perc.causaErrore === 'offline'
+                ? 'Riprovare non cambierà nulla: usa l’inserimento manuale qui sotto.'
+                : 'Puoi riprovare, oppure inserire il viaggio a mano qui sotto: il modo manuale resta sempre disponibile.'}
             </Avviso>
           )}
 
