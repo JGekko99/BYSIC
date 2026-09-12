@@ -16,7 +16,7 @@ Specifica completa: [`SPEC.md`](SPEC.md).
 | 2 | Modello energetico §3 + percorso manuale | ✅ |
 | 3 | Simulatore §4.2, ricerca §4.3, pannello debug | ✅ |
 | 4 | Checkpoint §5, modalità viaggio, persistenza | ✅ |
-| 5 | Routing e altimetria reali §7 | — |
+| 5 | Routing e altimetria reali §7 | ✅ |
 | 6 | Grafici, confronti, storico | — |
 
 ## Installare l'app sul telefono
@@ -37,7 +37,14 @@ richiedono un contesto sicuro e non funzionano in un'anteprima incorporata.
 npm install
 npm run dev       # server di sviluppo
 npm run build     # build di produzione (dist/)
-npm test          # test del modello
+npm test          # test del modello e dei checkpoint (133, nessuna rete)
+```
+
+I test che toccano davvero i servizi esterni sono separati e si lanciano a mano, perché non devono
+rendere la CI dipendente da servizi pubblici gratuiti:
+
+```bash
+npx vitest run --config vitest.rete.config.ts
 ```
 
 Screenshot a viewport telefono:
@@ -117,6 +124,64 @@ Conseguenza: **le istruzioni compaiono quando a imporle è un vincolo, non la co
 di arrivo richiesta, impossibilità di ricaricare a destinazione, sosta oltre i sette giorni. Quando
 non c'è nessun vincolo, l'app dice di non fare niente — che è la terza lettura di §4.5, solo più
 netta di quanto la SPEC sembri aspettarsi.
+
+## Percorso e altimetria reali
+
+Tre servizi, **nessuna chiave obbligatoria**:
+
+| cosa | servizio | chiave |
+|---|---|---|
+| indirizzi | Nominatim (OpenStreetMap) | no |
+| percorso | OSRM (server dimostrativo pubblico) | no |
+| quote | OpenTopoData, EU-DEM 25 m | no |
+| mappa | tile OpenStreetMap via Leaflet | no |
+
+Il profilo altimetrico viene campionato ogni 400 m — su Milano→Ortisei sono 771 punti, cioè 8
+richieste a una al secondo come chiede la policy pubblica — e levigato con una media mobile: il DEM
+ha qualche metro di rumore, e senza levigatura il modello leggerebbe quelle oscillazioni come
+frenate e rigenerazioni vere, gonfiando insieme consumo e recupero.
+
+### Perché il motore predefinito è quello senza chiave
+
+OpenRouteService è supportato e si può attivare incollando la propria chiave nella schermata *Auto*
+(resta sul dispositivo, in IndexedDB, e non entra mai nel bundle pubblicato). Ma il predefinito è
+**OSRM**, e non per risparmiare la chiave: sullo stesso percorso restituisce la sigla della strada
+(`A4`, `A22`, `SS242`) e distingue le rampe di uscita e di immissione, mentre ORS restituisce
+l'intera A4+A22 come **un unico passo di 129 km chiamato «-»**. La differenza si vede nel risultato:
+
+```
+OSRM →  «Uscita dalla A22 verso SS12»
+ORS  →  «km 278»
+```
+
+I punti di azione vengono spostati **1,2 km dopo la manovra**: un'uscita autostradale è esattamente
+un punto di manovra, e §13 vieta di piazzarci un checkpoint. Il punto prende il nome dell'uscita ma
+cade dove si è di nuovo su strada stabile.
+
+### La velocità del navigatore non è la tua
+
+I motori di routing usano i profili di velocità di OpenStreetMap, che sulle autostrade italiane
+danno intorno ai **100 km/h**. Chi ne fa 120 consuma il 20% in più: senza correzione il piano
+sottostimava il costo del viaggio di altrettanto (31,37 € invece di 36,71 € su Milano→Ortisei). La
+velocità autostradale abituale di §6 sostituisce quella del motore **solo sui tratti autostradali**;
+sulle altre strade la velocità del motore riflette la strada e va bene com'è.
+
+### Verifica contro §11
+
+Col percorso reale il piano trovato è quello che §11 si aspetta:
+
+```
+Alla partenza            → HEV + Sospensione SOC obbligatoria al 70%
+Uscita dalla A22 verso SS12 → Modalità EV        (critico)
+```
+
+Il costo è 36,71 € contro i 39,18 € attesi (−6,3%), ma il percorso di OSRM è di 308 km contro i 321
+della SPEC perché passa dalla BreBeMi: normalizzando sulla distanza lo scarto è −2,4%. A 2 °C:
+41,30 € contro 42,45 € (−2,7%).
+
+Nota: con l'inserimento manuale lo stesso viaggio dava «obbligatoria 55%». Il livello corretto — il
+70% di §11 — salta fuori solo col profilo altimetrico vero, dove la salita è concentrata negli
+ultimi chilometri invece che spalmata.
 
 ## Checkpoint e modalità viaggio
 

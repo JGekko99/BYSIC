@@ -4,3 +4,4 @@ dev-dist
 screenshots
 *.local
 .DS_Store
+*.tsbuildinfo

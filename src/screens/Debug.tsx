@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Avviso, Bottone, Card, Etichetta } from '../components/ui'
 import { rapportoConsumi, rapportoG, rapportoInvariante } from '../model/rapporto'
@@ -6,6 +6,7 @@ import { CALIBRAZIONE } from '../config/vehicle'
 import { etaCatenaTermica } from '../model/catena'
 import { useProfilo } from '../store/profilo'
 import { useViaggio } from '../store/viaggio'
+import { usePiano } from '../hooks/usePiano'
 import { pianifica } from '../model/pianificatore'
 import { descriviAzione } from '../model/ricerca'
 import { limiteDP } from '../model/dp'
@@ -25,7 +26,7 @@ export default function Debug() {
   const [dp, setDp] = useState<number | null>(null)
   const [scenari, setScenari] = useState<Array<{ nome: string; atteso: number; ottenuto: number }> | null>(null)
 
-  const piano = useMemo(() => pianifica(viaggio, profilo), [viaggio, profilo])
+  const { piano, daPercorsoReale } = usePiano()
 
   const calcolaDP = () => {
     setDp(
@@ -66,7 +67,7 @@ export default function Debug() {
 
       <Card
         titolo="Ricerca del piano"
-        sottotitolo={`${piano.ricerca.valutati} piani simulati in ${num(piano.ricerca.millisecondi, 0)} ms, ${piano.ricerca.scartati} scartati dai divieti di §13.`}
+        sottotitolo={`${piano.ricerca.valutati} piani simulati in ${num(piano.ricerca.millisecondi, 0)} ms, ${piano.ricerca.scartati} scartati dai divieti di §13. Percorso ${daPercorsoReale ? 'reale' : 'manuale'}, ${piano.sottotratti.length} sottotratti, ${piano.waypoint.length} waypoint.`}
       >
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2 text-center">

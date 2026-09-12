@@ -17,7 +17,71 @@ const ctx = await browser.newContext({
   permissions: ['geolocation'],
   geolocation: { latitude: 45.4642, longitude: 9.19 }, // Milano
 })
+/*
+ * Ponte di rete per gli screenshot.
+ *
+ * In questo container il browser non riesce a uscire (il relay del proxy chiude
+ * i tunnel del browser a metà scambio) mentre Node ci riesce. Le richieste verso
+ * i servizi esterni vengono quindi intercettate e rifatte da Node.
+ *
+ * Il codice dell'app gira per davvero — stessa fetch, stesso parsing, stesso
+ * rendering di Leaflet: cambia solo chi porta i byte. Su un browser normale
+ * questo ponte non serve e non viene installato.
+ */
+const ESTERNI = /^https:\/\/(nominatim\.openstreetmap\.org|router\.project-osrm\.org|api\.opentopodata\.org|api\.openrouteservice\.org|[abc]?\.?tile\.openstreetmap\.org)\//
+
+/*
+ * Risposte di geocodifica registrate una volta sola.
+ *
+ * Nominatim limita le richieste per indirizzo IP, e da una rete condivisa come
+ * questa il limite scatta subito: rifarle a ogni cattura significherebbe
+ * martellare un servizio pubblico gratuito per produrre screenshot. Il codice
+ * dell'app resta lo stesso — stessa fetch, stesso parsing, stesso rendering —
+ * cambia solo da dove arrivano quei due JSON.
+ */
+const REGISTRATE = process.env.GEOCODE_DIR
+  ? {
+      'Milano%20Duomo': `${process.env.GEOCODE_DIR}/milano.json`,
+      Ortisei: `${process.env.GEOCODE_DIR}/ortisei.json`,
+    }
+  : {}
+
+async function ponteDiRete(page) {
+  await page.route(ESTERNI, async (route) => {
+    const url = route.request().url()
+    const registrata = Object.entries(REGISTRATE).find(([q]) => url.includes(`q=${q}&`))
+    if (registrata) {
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+        body: readFileSync(registrata[1]),
+      })
+      return
+    }
+    const richiesta = route.request()
+    try {
+      const r = await fetch(richiesta.url(), {
+        method: richiesta.method(),
+        headers: { ...richiesta.headers(), 'user-agent': 'BYSIC/0.1 (screenshot)' },
+        body: richiesta.postData() ?? undefined,
+      })
+      const corpo = Buffer.from(await r.arrayBuffer())
+      await route.fulfill({
+        status: r.status,
+        headers: {
+          'content-type': r.headers.get('content-type') ?? 'application/json',
+          'access-control-allow-origin': '*',
+        },
+        body: corpo,
+      })
+    } catch (e) {
+      await route.abort()
+    }
+  })
+}
+
 const page = await ctx.newPage()
+await ponteDiRete(page)
 const scatti = []
 
 async function scatta(nome, didascalia, y = 0) {
@@ -35,6 +99,41 @@ for (let i = 0; i < 7; i++) {
   await page.waitForTimeout(150)
 }
 await page.waitForURL(/#\/$/)
+
+if (SOLO === 'percorso') {
+  await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+  await scatta('40-percorso-vuoto', 'Inserimento del percorso: indirizzi, non chilometri')
+
+  const cerca = async (etichetta, testo, scelta) => {
+    const campo = page.locator('label').filter({ has: page.locator(`span:text-is("${etichetta}")`) }).locator('input')
+    await campo.click()
+    await campo.fill(testo)
+    // debounce di 600 ms, più la latenza del ponte di rete
+    const voce = page.getByRole('button', { name: new RegExp(scelta, 'i') }).first()
+    await voce.waitFor({ state: 'visible', timeout: 25000 })
+    await voce.click()
+    await page.waitForTimeout(400)
+  }
+  await cerca('Partenza', 'Milano Duomo', 'Duomo')
+  await scatta('41-percorso-ricerca', 'Ricerca indirizzi su Nominatim, senza chiave')
+  await cerca('Arrivo', 'Ortisei', 'Ortisei')
+
+  await page.getByRole('button', { name: /Calcola il percorso/ }).click()
+  await page.waitForTimeout(2500)
+  await scatta('42-percorso-quote', 'Scarico del profilo altimetrico, una richiesta al secondo')
+  await page.waitForFunction(() => !document.body.innerText.includes('Scarico il profilo'), { timeout: 90000 })
+  await page.waitForTimeout(3000)
+  await scatta('43-percorso-mappa', 'Percorso reale: mappa, profilo altimetrico, dislivelli veri', 520)
+  await scatta('44-percorso-dati', 'Otto punti riconoscibili estratti dall’itinerario', 900)
+
+  await page.goto(`${BASE}/#/piano`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(2500)
+  await scatta('45-piano-mappa', 'Il piano sulla mappa, con i checkpoint e i loro raggi')
+  await scatta('46-piano-istruzioni', 'Le istruzioni prendono il nome dell’uscita, non il chilometro', 720)
+  await page.goto(`${BASE}/#/debug`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1500)
+  await scatta('47-debug-percorso', 'Il pannello dichiara da dove viene il percorso')
+}
 
 if (!SOLO || SOLO === 'guida') {
   await page.goto(`${BASE}/#/guida`, { waitUntil: 'networkidle' })

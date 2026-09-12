@@ -1,8 +1,12 @@
 import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Avviso, Bottone, Campo, Card, Etichetta, Numero, Segmenti } from '../components/ui'
+import CercaLuogo from '../components/CercaLuogo'
+import Mappa from '../components/Mappa'
+import ProfiloAltimetrico from '../components/ProfiloAltimetrico'
 import { useProfilo } from '../store/profilo'
 import { useViaggio } from '../store/viaggio'
+import { usePercorso } from '../store/percorso'
 import { massaTotale } from '../model/fisica'
 import { confronti, previsione, trattiDaManuale } from '../model/previsione'
 import { PIANIFICAZIONE } from '../config/vehicle'
@@ -12,14 +16,16 @@ const num = (v: number, d = 2) => v.toFixed(d).replace('.', ',')
 export default function NuovoViaggio() {
   const { profilo } = useProfilo()
   const { viaggio, caricato, carica, aggiorna } = useViaggio()
+  const perc = usePercorso()
 
   useEffect(() => {
     if (!caricato) void carica()
-  }, [caricato, carica])
+    void perc.caricaUltimo()
+  }, [caricato, carica, perc])
 
   const calcolo = useMemo(() => {
     const massa = massaTotale(viaggio.passeggeri, viaggio.caricoKg, viaggio.boxDaTetto)
-    const tratti = trattiDaManuale(viaggio)
+    const tratti = perc.percorso?.sottotratti ?? trattiDaManuale(viaggio)
     const p = previsione(tratti, viaggio, massa, profilo.sogliaFisicaEV, profilo.capacitaBatteriaKwh)
     const c = confronti(
       p,
@@ -30,7 +36,7 @@ export default function NuovoViaggio() {
       profilo.capacitaBatteriaKwh,
     )
     return { massa, p, c }
-  }, [viaggio, profilo])
+  }, [viaggio, profilo, perc.percorso])
 
   const { p, c, massa } = calcolo
   const migliore = c.reduce((a, b) => (a.costo <= b.costo ? a : b))
@@ -49,8 +55,101 @@ export default function NuovoViaggio() {
       </header>
 
       <Card
-        titolo="Percorso"
-        sottotitolo="Quanti km per tipo di strada. È il modo manuale di §9.2: resta sempre disponibile come fallback offline, anche quando al punto 5 arriverà il percorso reale."
+        titolo="Da dove a dove"
+        sottotitolo="Percorso e altimetria reali. Il motore predefinito è OSRM, che non richiede chiavi e restituisce sigle e uscite autostradali; le quote vengono da OpenTopoData (EU-DEM 25 m)."
+      >
+        <div className="space-y-4">
+          <CercaLuogo
+            etichetta="Partenza"
+            valore={perc.partenza}
+            onScelto={(l) => perc.imposta({ partenza: l })}
+            segnaposto="Milano, Piazza Duomo"
+          />
+          <CercaLuogo
+            etichetta="Arrivo"
+            valore={perc.arrivo}
+            onScelto={(l) => perc.imposta({ arrivo: l })}
+            segnaposto="Ortisei"
+          />
+
+          {profilo.chiaveOrs ? (
+            <Campo etichetta="Motore di percorso">
+              <Segmenti
+                valore={perc.motore}
+                opzioni={[
+                  { v: 'osrm', etichetta: 'OSRM · consigliato' },
+                  { v: 'ors', etichetta: 'OpenRouteService' },
+                ]}
+                onChange={(v) => {
+                  perc.imposta({ motore: v })
+                  perc.pulisci()
+                }}
+              />
+            </Campo>
+          ) : null}
+
+          {perc.caricamento ? (
+            <Avviso>
+              {perc.caricamento.fase === 'percorso' && 'Calcolo il percorso…'}
+              {perc.caricamento.fase === 'quote' &&
+                `Scarico il profilo altimetrico: ${perc.caricamento.fatte}/${perc.caricamento.totali} blocchi. Una richiesta al secondo, come chiede la policy pubblica.`}
+              {perc.caricamento.fase === 'segmentazione' && 'Segmento il percorso…'}
+            </Avviso>
+          ) : (
+            <Bottone
+              onClick={() => void perc.risolvi()}
+              disabilitato={!perc.partenza || !perc.arrivo}
+            >
+              {perc.percorso ? 'Ricalcola il percorso' : 'Calcola il percorso'}
+            </Bottone>
+          )}
+
+          {perc.errore && (
+            <Avviso tono="critico">
+              {perc.errore} — puoi riprovare, oppure inserire il viaggio a mano qui sotto: il modo
+              manuale resta sempre disponibile.
+            </Avviso>
+          )}
+
+          {perc.percorso && (
+            <div className="space-y-3">
+              <Mappa
+                geometria={perc.percorso.grezzo.geometria}
+                waypoint={perc.percorso.waypoint}
+              />
+              <ProfiloAltimetrico profilo={perc.percorso.profilo} />
+              <div className="tabular grid grid-cols-4 gap-2 text-center text-xs">
+                {[
+                  [num(perc.percorso.grezzo.distanzaKm, 0), 'km'],
+                  [num(perc.percorso.grezzo.durataOre, 1), 'ore'],
+                  [`+${num(perc.percorso.salitaTotaleM, 0)}`, 'm salita'],
+                  [`−${num(perc.percorso.discesaTotaleM, 0)}`, 'm discesa'],
+                ].map(([v, e]) => (
+                  <div key={e} className="rounded-xl bg-superficie2 px-1 py-2">
+                    <p className="text-sm font-bold text-testo">{v}</p>
+                    <p className="text-[11px] text-attenuato">{e}</p>
+                  </div>
+                ))}
+              </div>
+              <Avviso>
+                {perc.percorso.waypoint.length} punti riconoscibili estratti dall’itinerario: sono
+                sia i candidati punto di rilascio sia i checkpoint del viaggio.{' '}
+                {perc.percorso.grezzo.conTraffico
+                  ? ''
+                  : 'La durata usa i profili di velocità OSM, non il traffico previsto: negli orari di punta è ottimistica.'}
+              </Avviso>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card
+        titolo={perc.percorso ? 'Percorso manuale (non in uso)' : 'Percorso manuale'}
+        sottotitolo={
+          perc.percorso
+            ? 'Il piano sta usando il percorso reale. Questi campi restano come fallback offline e come banco di prova del modello.'
+            : 'Quanti km per tipo di strada. È il modo manuale di §9.2: resta sempre disponibile come fallback offline e come banco di prova del modello.'
+        }
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -83,7 +182,10 @@ export default function NuovoViaggio() {
               />
             </Campo>
           </div>
-          <Campo etichetta="Velocità che tieni in autostrada">
+          <Campo
+            etichetta="Velocità che tieni in autostrada"
+            aiuto="Conta più di quanto sembri: i motori di percorso calcolano l’autostrada intorno ai 100 km/h, e a 120 se ne consuma il 20% in più."
+          >
             <Segmenti
               valore={String(viaggio.velocitaAutostrada)}
               opzioni={[
@@ -91,7 +193,10 @@ export default function NuovoViaggio() {
                 { v: '120', etichetta: '120' },
                 { v: '130', etichetta: '130' },
               ]}
-              onChange={(v) => aggiorna({ velocitaAutostrada: Number(v) })}
+              onChange={(v) => {
+                aggiorna({ velocitaAutostrada: Number(v) })
+                perc.imposta({ velocitaAutostrada: Number(v) })
+              }}
             />
           </Campo>
           <div className="grid grid-cols-2 gap-3">

@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Avviso, Bottone, Card, Etichetta, Numero } from '../components/ui'
 import { useProfilo } from '../store/profilo'
 import { useViaggio } from '../store/viaggio'
 import { useSessione } from '../store/sessione'
-import { pianifica, ripianifica, type IstruzioneUtente } from '../model/pianificatore'
+import { usePiano } from '../hooks/usePiano'
+import { ripianifica, type IstruzioneUtente } from '../model/pianificatore'
 import { checklistPartenza, nuovaSessione, prossimo } from '../model/checkpoint'
 import { avvisa, usePosizione } from '../hooks/usePosizione'
+import { distanzaKm } from '../percorso/altimetria'
 import { CHECKPOINT, MENU } from '../config/vehicle'
 import type { Checkpoint } from '../types'
 
@@ -15,7 +17,8 @@ const CHIAVE_AVVISO = 'bysic:avviso-gps-letto'
 
 export default function ModalitaViaggio() {
   const { profilo } = useProfilo()
-  const { viaggio, caricato: viaggioCaricato, carica: caricaViaggio } = useViaggio()
+  const { viaggio } = useViaggio()
+  const { piano } = usePiano()
   const sessioneStore = useSessione()
   const { sessione, caricato } = sessioneStore
 
@@ -37,20 +40,32 @@ export default function ModalitaViaggio() {
 
   useEffect(() => {
     if (!caricato) void sessioneStore.carica()
-    if (!viaggioCaricato) void caricaViaggio()
-  }, [caricato, viaggioCaricato, sessioneStore, caricaViaggio])
+  }, [caricato, sessioneStore])
 
-  const piano = useMemo(() => pianifica(viaggio, profilo), [viaggio, profilo])
+  const corrente = sessione ? prossimo(sessione) : undefined
 
-  // Progressiva dal GPS: è un contachilometri, non una mappa.
+  /*
+   * Due modi di sapere dove siamo, e si usa il migliore disponibile.
+   *
+   * 1. Geofence vero: col percorso reale i checkpoint hanno coordinate, quindi
+   *    si misura la distanza dal punto e si arma quando si entra nel raggio.
+   * 2. Contachilometri: senza coordinate resta la distanza accumulata fra i fix.
+   */
   useEffect(() => {
-    if (!sessione || !gps.attivo) return
+    if (!sessione || !gps.attivo || !gps.ultima) return
+
+    if (corrente?.coord) {
+      const d = distanzaKm(gps.ultima, corrente.coord) * 1000
+      if (d <= corrente.raggio && corrente.stato !== 'armato') {
+        sessioneStore.aggiornaProgressiva(corrente.km, 'gps')
+        return
+      }
+    }
+
     if (gps.kmPercorsi > sessione.kmPercorsi + 0.05) {
       sessioneStore.aggiornaProgressiva(gps.kmPercorsi, 'gps')
     }
-  }, [gps.kmPercorsi, gps.attivo, sessione, sessioneStore])
-
-  const corrente = sessione ? prossimo(sessione) : undefined
+  }, [gps.kmPercorsi, gps.attivo, gps.ultima, sessione, sessioneStore, corrente])
 
   // Avviso quando un checkpoint si arma.
   useEffect(() => {
@@ -154,8 +169,11 @@ export default function ModalitaViaggio() {
           <span>
             {gps.attivo ? (
               <>
-                GPS attivo · {num(sessione.kmPercorsi, 1)} km
-                {gps.precisioneM ? ` · ±${num(gps.precisioneM)} m` : ''}
+                {corrente?.coord ? 'GPS · geofence' : 'GPS · contachilometri'} ·{' '}
+                {num(sessione.kmPercorsi, 1)} km
+                {corrente?.coord && gps.ultima
+                  ? ` · ${num(distanzaKm(gps.ultima, corrente.coord), 1)} km al punto`
+                  : ''}
               </>
             ) : gps.permesso === 'negato' ? (
               'GPS negato — usa «Sono qui»'

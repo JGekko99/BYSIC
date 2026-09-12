@@ -13,6 +13,14 @@ export function socPrevistoAlKm(piano: Piano, profiloSoc: number[], km: number):
   return profiloSoc[migliore] ?? profiloSoc[profiloSoc.length - 1] ?? 0
 }
 
+/** Coordinate del waypoint più vicino: col percorso reale ci sono, col manuale no. */
+function coordPer(piano: Piano, km: number): { lat: number; lng: number } | undefined {
+  const vicino = piano.waypoint
+    .filter((w) => w.coord)
+    .sort((a, b) => Math.abs(a.km - km) - Math.abs(b.km - km))[0]
+  return vicino && Math.abs(vicino.km - km) < 2 ? vicino.coord : undefined
+}
+
 function raggioPer(piano: Piano, km: number): number {
   const progr = progressive(piano.sottotratti)
   let i = 0
@@ -93,6 +101,7 @@ export function costruisciCheckpoint(piano: Piano, socPartenza: number): Checkpo
       tipo: 'istruzione',
       km: istr.km,
       raggio: raggioPer(piano, istr.km),
+      coord: coordPer(piano, istr.km),
       nome: istr.quando,
       critico: istr.critico,
       azione: istr.azione,
@@ -110,6 +119,7 @@ export function costruisciCheckpoint(piano: Piano, socPartenza: number): Checkpo
       tipo: 'verifica',
       km: w.km,
       raggio: raggioPer(piano, w.km),
+      coord: w.coord,
       nome: w.nome,
       critico: false,
       socPrevisto: socPrevistoAlKm(piano, profiloSoc, w.km),

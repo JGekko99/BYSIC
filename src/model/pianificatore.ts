@@ -1,5 +1,5 @@
 import { MENU, VEICOLO } from '../config/vehicle'
-import type { Azione, Waypoint } from '../types'
+import type { Azione, Tratto, Waypoint } from '../types'
 import { massaTotale } from './fisica'
 import { indiceDaKm, progressive, segmenta, waypointCandidati } from './percorso'
 import { trattiDaManuale, type ViaggioManuale } from './previsione'
@@ -90,19 +90,41 @@ function eRilascio(a: Azione, precedente: Azione | undefined): boolean {
   return false
 }
 
-export function pianifica(
-  v: DatiViaggio,
-  profilo: {
-    capacitaBatteriaKwh: number
-    sogliaFisicaEV: number
-    socMin: number
-    socMax: number
-    prezzoBenzina: number
-    prezzoElettricitaCasa: number
-  },
+export type ProfiloPrezzi = {
+  capacitaBatteriaKwh: number
+  sogliaFisicaEV: number
+  socMin: number
+  socMax: number
+  prezzoBenzina: number
+  prezzoElettricitaCasa: number
+}
+
+/**
+ * Pianificazione su tratti e waypoint già pronti.
+ *
+ * `posizioneNota` distingue le due origini: col percorso reale salite, discese
+ * e waypoint stanno dove stanno davvero, quindi i vincoli di §4.4 possono
+ * indicare il chilometro; con l'inserimento manuale no, e l'app lo dice invece
+ * di inventarlo.
+ */
+export function pianificaTratti(
+  sottotratti: Tratto[],
+  waypoint: Waypoint[],
+  v: Pick<
+    DatiViaggio,
+    | 'tempC'
+    | 'passeggeri'
+    | 'caricoKg'
+    | 'boxDaTetto'
+    | 'socPartenza'
+    | 'socRiserva'
+    | 'sostaGiorni'
+    | 'ricaricaDestinazione'
+  >,
+  profilo: ProfiloPrezzi,
+  posizioneNota: boolean,
 ): Piano {
   const massaKg = massaTotale(v.passeggeri, v.caricoKg, v.boxDaTetto)
-  const sottotratti = segmenta(trattiDaManuale(v))
   const ctx = contestoDaProfilo(
     massaKg,
     v.tempC,
@@ -113,12 +135,11 @@ export function pianifica(
     profilo.socMax,
   )
   const preparati = prepara(sottotratti, ctx)
-  const waypoint = waypointCandidati(sottotratti)
   const sosta: Sosta = {
     giorni: v.sostaGiorni,
     ricaricabile: v.ricaricaDestinazione !== 'no',
   }
-  const vs = vincoli(sottotratti, massaKg, profilo.capacitaBatteriaKwh, sosta)
+  const vs = vincoli(sottotratti, massaKg, profilo.capacitaBatteriaKwh, sosta, posizioneNota)
   const minimo = socArrivoMinimo(vs, v.socRiserva)
 
   const ricerca = cerca({
@@ -162,6 +183,12 @@ export function pianifica(
     socArrivoMinimo: minimo,
     nessunaIstruzione: ricerca.sottoSoglia,
   }
+}
+
+/** Pianificazione dall'inserimento manuale (§9.2), che resta sempre disponibile. */
+export function pianifica(v: DatiViaggio, profilo: ProfiloPrezzi): Piano {
+  const sottotratti = segmenta(trattiDaManuale(v))
+  return pianificaTratti(sottotratti, waypointCandidati(sottotratti), v, profilo, false)
 }
 
 /**

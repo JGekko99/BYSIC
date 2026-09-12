@@ -18,6 +18,7 @@ export const profiloIniziale: Profilo = {
   tariffaBioraria: false,
   ricaricaCasa: 'presa-domestica',
   consumiOsservati: {},
+  chiaveOrs: '',
   aggiornatoAlle: new Date().toISOString(),
 }
 

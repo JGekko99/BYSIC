@@ -141,6 +141,32 @@ export default function Auto() {
       </Card>
 
       <Card
+        titolo="Percorso e altimetria"
+        sottotitolo="Percorso da OSRM, quote da OpenTopoData, indirizzi da Nominatim: nessuno dei tre richiede una chiave."
+      >
+        <div className="space-y-3">
+          <Campo
+            etichetta="Chiave OpenRouteService (facoltativa)"
+            aiuto="Serve solo se vuoi usare ORS al posto di OSRM. Resta su questo dispositivo e non finisce mai nell’app pubblicata."
+          >
+            <input
+              type="password"
+              className="w-full rounded-xl border border-bordo bg-superficie2 px-3 py-3 font-mono text-xs text-testo outline-none focus:border-marchio"
+              placeholder="incollala qui"
+              value={profilo.chiaveOrs ?? ''}
+              onChange={(e) => aggiorna({ chiaveOrs: e.target.value })}
+            />
+          </Campo>
+          <Avviso>
+            Il motore predefinito resta <strong>OSRM</strong> anche se metti la chiave, e non per
+            risparmiarla: sullo stesso percorso restituisce le sigle delle strade e le rampe di
+            uscita, mentre ORS dà l’intera autostrada come un unico passo senza nome. La differenza
+            è fra un checkpoint chiamato «Uscita dalla A22 verso la SS12» e uno chiamato «km 278».
+          </Avviso>
+        </div>
+      </Card>
+
+      <Card
         titolo="Verifica del modello"
         sottotitolo="Le tabelle §3.1 e §3.2 della SPEC ricalcolate dal modello in esecuzione."
       >

@@ -72,6 +72,13 @@ export type Profilo = {
   prezzoElettricitaF23?: number
   ricaricaCasa: 'nessuna' | 'presa-domestica' | 'wallbox'
   consumiOsservati: ConsumiOsservati
+  /**
+   * Chiave OpenRouteService, facoltativa. Sta qui — cioè in IndexedDB, sul
+   * dispositivo — e non in una variabile d'ambiente, perché un'app senza
+   * backend pubblicata su GitHub Pages metterebbe qualunque chiave del bundle
+   * in chiaro a disposizione di chiunque apra il sorgente.
+   */
+  chiaveOrs?: string
   aggiornatoAlle: string
 }
 

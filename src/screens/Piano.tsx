@@ -1,25 +1,20 @@
-import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Avviso, Bottone, Card, Etichetta } from '../components/ui'
 import GraficoSoc from '../components/GraficoSoc'
-import { useProfilo } from '../store/profilo'
 import { useViaggio } from '../store/viaggio'
-import { pianifica } from '../model/pianificatore'
+import { usePiano } from '../hooks/usePiano'
 import { descriviAzione } from '../model/ricerca'
+import Mappa from '../components/Mappa'
+import ProfiloAltimetrico from '../components/ProfiloAltimetrico'
+import { costruisciCheckpoint } from '../model/checkpoint'
 import { PIANIFICAZIONE } from '../config/vehicle'
 
 const eur = (v: number) => v.toFixed(2).replace('.', ',') + ' €'
 const num = (v: number, d = 2) => v.toFixed(d).replace('.', ',')
 
 export default function Piano() {
-  const { profilo } = useProfilo()
-  const { viaggio, caricato, carica } = useViaggio()
-
-  useEffect(() => {
-    if (!caricato) void carica()
-  }, [caricato, carica])
-
-  const piano = useMemo(() => pianifica(viaggio, profilo), [viaggio, profilo])
+  const { viaggio } = useViaggio()
+  const { piano, percorso, daPercorsoReale } = usePiano()
   const scelto = piano.ricerca.scelto
   const riferimenti = piano.ricerca.riferimenti
 
@@ -31,6 +26,33 @@ export default function Piano() {
           {num(piano.sottotratti.reduce((s, t) => s + t.km, 0), 0)} km · {viaggio.tempC} °C
         </span>
       </header>
+
+      {percorso && (
+        <Card
+          titolo={`${percorso.partenza.nome} → ${percorso.arrivo.nome}`}
+          sottotitolo={`${percorso.grezzo.fonte} · quote ${percorso.fonteQuote}`}
+        >
+          <div className="space-y-3">
+            <Mappa
+              geometria={percorso.grezzo.geometria}
+              waypoint={percorso.waypoint}
+              checkpoint={costruisciCheckpoint(piano, viaggio.socPartenza)}
+            />
+            <ProfiloAltimetrico profilo={percorso.profilo} istruzioni={piano.istruzioni} />
+          </div>
+        </Card>
+      )}
+
+      {!daPercorsoReale && (
+        <Avviso>
+          Piano calcolato dall’inserimento manuale. Con il percorso reale le salite e le discese
+          stanno dove stanno davvero e i punti di azione prendono il nome dell’uscita invece del
+          chilometro.{' '}
+          <Link to="/" className="font-medium text-marchio">
+            Inserisci gli indirizzi →
+          </Link>
+        </Avviso>
+      )}
 
       {piano.nessunaIstruzione ? (
         <Card titolo="Su questo viaggio la strategia non cambia nulla" tono="ev">

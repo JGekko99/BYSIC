@@ -1,5 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { Profilo, Sessione } from '../types'
+import type { PercorsoRisolto } from '../percorso/tipi'
+
+/** Percorsi già risolti, tenuti da parte per non rifare le chiamate di rete. */
+export type PercorsoInCache = {
+  chiave: string
+  percorso: PercorsoRisolto
+  salvatoAlle: string
+}
 import type { DatiViaggio } from '../model/pianificatore'
 
 export type Bozza = DatiViaggio & { id: 1 }
@@ -12,6 +20,7 @@ export const db = new Dexie('bysic') as Dexie & {
   profilo: EntityTable<Profilo, 'id'>
   bozza: EntityTable<Bozza, 'id'>
   sessioni: EntityTable<Sessione, 'id'>
+  percorsi: EntityTable<PercorsoInCache, 'chiave'>
 }
 
 db.version(1).stores({
@@ -27,6 +36,13 @@ db.version(3).stores({
   profilo: 'id',
   bozza: 'id',
   sessioni: 'id, stato, creataAlle',
+})
+
+db.version(4).stores({
+  profilo: 'id',
+  bozza: 'id',
+  sessioni: 'id, stato, creataAlle',
+  percorsi: 'chiave, salvatoAlle',
 })
 
 export async function leggiProfilo(): Promise<Profilo | undefined> {
@@ -58,4 +74,20 @@ export async function salvaSessione(s: Sessione): Promise<void> {
 export async function elencoSessioni(): Promise<Sessione[]> {
   const tutte = await db.sessioni.toArray()
   return tutte.sort((a, b) => b.creataAlle.localeCompare(a.creataAlle))
+}
+
+/**
+ * Cache dei percorsi risolti.
+ *
+ * Al contrario di Google Maps Platform, le licenze di OSM, OSRM e OpenTopoData
+ * non vietano di conservare i risultati: è quello che rende il piano
+ * consultabile offline (§9) senza rifare otto richieste di quota a ogni
+ * ricalcolo.
+ */
+export async function percorsoInCache(chiave: string): Promise<PercorsoRisolto | undefined> {
+  return (await db.percorsi.get(chiave))?.percorso
+}
+
+export async function salvaPercorso(chiave: string, percorso: PercorsoRisolto): Promise<void> {
+  await db.percorsi.put({ chiave, percorso, salvatoAlle: new Date().toISOString() })
 }
