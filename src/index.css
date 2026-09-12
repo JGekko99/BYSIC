@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-fondo: #090e18;
+  --color-superficie: #141d2e;
+  --color-superficie2: #1c2739;
+  --color-bordo: #2a3750;
+  --color-testo: #e9eef8;
+  --color-attenuato: #8d9cb8;
+  --color-ev: #34d399;
+  --color-hev: #fbbf24;
+  --color-critico: #fb7185;
+  --color-marchio: #60a5fa;
+
+  /*
+   * Colori delle serie nei grafici, distinti dagli accenti dell'interfaccia.
+   * Sono un passo più scuri perché devono stare su una superficie scura come
+   * marchi pieni, non come testo: verificati per banda di luminosità, croma,
+   * separazione per daltonismo e contrasto sul fondo #141d2e.
+   */
+  --color-serie-previsto: #4f93e8;
+  --color-serie-reale: #1fae7e;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+html {
+  background: var(--color-fondo);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-fondo);
+  color: var(--color-testo);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* Niente zoom involontario su iOS: ogni input resta ≥ 16px. */
+input,
+select,
+textarea,
+button {
+  font-size: 16px;
+  font-family: inherit;
+}
+
+input[type='range'] {
+  accent-color: var(--color-marchio);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
