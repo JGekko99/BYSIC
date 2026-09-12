@@ -94,3 +94,43 @@ export type Checkpoint = {
   socReale?: number
   eseguitoAlle?: string
 }
+
+// ─── Sessione di viaggio (SPEC §5) ──────────────────────────────────────────
+
+export type Divergenza = {
+  checkpointId: string
+  nome: string
+  alle: string
+  km: number
+  socPrevisto: number
+  socReale: number
+  differenza: number
+  /** Il piano residuo è stato ricalcolato per via di questa divergenza. */
+  ricalcolato: boolean
+  /** L'auto aveva corretto da sola il setpoint (§2.2): assecondata. */
+  setpointCorrettoDallAuto?: number
+}
+
+export type StatoSessione = 'in-corso' | 'conclusa' | 'annullata'
+
+export type Sessione = {
+  id: string
+  creataAlle: string
+  aggiornataAlle: string
+  stato: StatoSessione
+  titolo: string
+  /** Snapshot dell'input: il viaggio non deve cambiare sotto i piedi. */
+  dati: unknown
+  checkpoint: Checkpoint[]
+  /** Progressiva stimata, da GPS o da "Sono qui". */
+  kmPercorsi: number
+  /** Come è stata ottenuta la progressiva, per non fingere precisione. */
+  fonteProgressiva: 'gps' | 'manuale' | 'stima-tempo'
+  divergenze: Divergenza[]
+  socPartenza: number
+  costoPrevisto: number
+  // Consuntivo all'arrivo, alimenta la calibrazione (§5.2)
+  socFinale?: number
+  litriEffettivi?: number
+  kmReali?: number
+}

@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Profilo } from '../types'
+import type { Profilo, Sessione } from '../types'
 import type { DatiViaggio } from '../model/pianificatore'
 
 export type Bozza = DatiViaggio & { id: 1 }
@@ -11,6 +11,7 @@ export type Bozza = DatiViaggio & { id: 1 }
 export const db = new Dexie('bysic') as Dexie & {
   profilo: EntityTable<Profilo, 'id'>
   bozza: EntityTable<Bozza, 'id'>
+  sessioni: EntityTable<Sessione, 'id'>
 }
 
 db.version(1).stores({
@@ -20,6 +21,12 @@ db.version(1).stores({
 db.version(2).stores({
   profilo: 'id',
   bozza: 'id',
+})
+
+db.version(3).stores({
+  profilo: 'id',
+  bozza: 'id',
+  sessioni: 'id, stato, creataAlle',
 })
 
 export async function leggiProfilo(): Promise<Profilo | undefined> {
@@ -36,4 +43,19 @@ export async function leggiBozza(): Promise<Bozza | undefined> {
 
 export async function salvaBozza(b: Bozza): Promise<void> {
   await db.bozza.put(b)
+}
+
+/** Il viaggio in corso, se c'è: è quello che l'app propone di riprendere (§5.1). */
+export async function sessioneInCorso(): Promise<Sessione | undefined> {
+  const aperte = await db.sessioni.where('stato').equals('in-corso').toArray()
+  return aperte.sort((a, b) => b.creataAlle.localeCompare(a.creataAlle))[0]
+}
+
+export async function salvaSessione(s: Sessione): Promise<void> {
+  await db.sessioni.put({ ...s, aggiornataAlle: new Date().toISOString() })
+}
+
+export async function elencoSessioni(): Promise<Sessione[]> {
+  const tutte = await db.sessioni.toArray()
+  return tutte.sort((a, b) => b.creataAlle.localeCompare(a.creataAlle))
 }

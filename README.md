@@ -15,9 +15,21 @@ Specifica completa: [`SPEC.md`](SPEC.md).
 | 1 | Scheletro PWA, navigazione, onboarding auto | ✅ |
 | 2 | Modello energetico §3 + percorso manuale | ✅ |
 | 3 | Simulatore §4.2, ricerca §4.3, pannello debug | ✅ |
-| 4 | Checkpoint §5, modalità viaggio, persistenza | — |
+| 4 | Checkpoint §5, modalità viaggio, persistenza | ✅ |
 | 5 | Routing e altimetria reali §7 | — |
 | 6 | Grafici, confronti, storico | — |
+
+## Installare l'app sul telefono
+
+L'app è pubblicata su GitHub Pages a ogni push su `main`, dopo che i test sono passati
+(`.github/workflows/pages.yml`). Per attivarla la prima volta: **Settings → Pages → Source:
+GitHub Actions**.
+
+Dal telefono, aperto il link: su iOS *Condividi → Aggiungi a Home*, su Android *Installa app*.
+Installata, funziona a schermo intero e offline dopo il primo caricamento.
+
+Il deploy vero serve per la modalità viaggio: la geolocalizzazione e lo Screen Wake Lock
+richiedono un contesto sicuro e non funzionano in un'anteprima incorporata.
 
 ## Sviluppo
 
@@ -103,6 +115,31 @@ Conseguenza: **le istruzioni compaiono quando a imporle è un vincolo, non la co
 di arrivo richiesta, impossibilità di ricaricare a destinazione, sosta oltre i sette giorni. Quando
 non c'è nessun vincolo, l'app dice di non fare niente — che è la terza lettura di §4.5, solo più
 netta di quanto la SPEC sembri aspettarsi.
+
+## Checkpoint e modalità viaggio
+
+Il sistema di checkpoint è una delle tre parti principali dell'app, non un dettaglio di
+interfaccia. Stato in `src/model/checkpoint.ts`, persistenza in IndexedDB via Dexie, posizione in
+`src/hooks/usePosizione.ts`.
+
+- **Checklist di partenza** da fare da fermi, con la forzatura in HEV in evidenza: con la batteria
+  carica l'auto si mette da sola in EV all'accensione (§2.2), quindi senza quel passaggio il piano
+  non parte proprio.
+- **Checkpoint di istruzione**, con il rilascio marcato critico; **verifiche** ogni ~80 km per
+  ricalibrare; **arrivo** che raccoglie i consuntivi.
+- **Progressiva da GPS** come contachilometri: si accumula la distanza fra un fix e l'altro. Senza
+  percorso reale i checkpoint non hanno coordinate, quindi non è un geofence — ma funziona già, ed è
+  onesto su cosa sta misurando. I fix con più di 100 m di incertezza e i salti oltre 250 km/h
+  vengono scartati: aggiungerebbero chilometri mai percorsi.
+- **«Sono qui»** in cima allo schermo, sempre, e funzionante senza GPS.
+- **Segnale perso** → l'app dice a che chilometro dovresti essere e chiede conferma, invece di
+  indovinare.
+- **Divergenza oltre 5 punti** → ricalcolo del piano residuo a partire dal SOC che hai letto davvero,
+  non da quello previsto. Tutte le divergenze vengono registrate, anche quelle piccole: sono il
+  materiale della calibrazione della v2.
+- **Setpoint corretto dall'auto** (succede con quota e temperatura, §2.2) → viene assecondato e
+  registrato, non riproposto.
+- **Viaggio interrotto** → alla riapertura l'app propone di riprenderlo da dov'era.
 
 ## Limiti dichiarati
 

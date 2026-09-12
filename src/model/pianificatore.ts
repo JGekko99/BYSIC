@@ -1,7 +1,7 @@
 import { MENU, VEICOLO } from '../config/vehicle'
 import type { Azione, Waypoint } from '../types'
 import { massaTotale } from './fisica'
-import { segmenta, waypointCandidati } from './percorso'
+import { indiceDaKm, progressive, segmenta, waypointCandidati } from './percorso'
 import { trattiDaManuale, type ViaggioManuale } from './previsione'
 import { contestoDaProfilo, prepara, type Contesto } from './simulatore'
 import { cerca, descriviAzione, type PianoValutato, type RisultatoRicerca } from './ricerca'
@@ -162,6 +162,54 @@ export function pianifica(
     socArrivoMinimo: minimo,
     nessunaIstruzione: ricerca.sottoSoglia,
   }
+}
+
+/**
+ * Ricalcolo del piano residuo dopo una divergenza (SPEC §5.4).
+ *
+ * Riparte dal punto in cui si trova l'auto e dal SOC che l'utente ha letto
+ * davvero sul display, non da quello previsto. Il percorso già fatto non si
+ * tocca: quello che cambia è solo quello che resta.
+ */
+export function ripianifica(
+  piano: Piano,
+  daKm: number,
+  socRealePct: number,
+  profilo: Parameters<typeof pianifica>[1],
+  socArrivoMinimo = piano.socArrivoMinimo,
+): { istruzioni: IstruzioneUtente[]; ricerca: RisultatoRicerca; sottotratti: Piano['sottotratti'] } {
+  const da = indiceDaKm(piano.sottotratti, daKm)
+  const residuo = piano.sottotratti.slice(da)
+  const offset = progressive(piano.sottotratti)[da]
+
+  const preparati = prepara(residuo, piano.ctx)
+  const waypoint = waypointCandidati(residuo).map((w) => ({ ...w, km: w.km + offset }))
+  const ricerca = cerca({
+    sottotratti: residuo,
+    preparati,
+    waypoint,
+    socPartenza: socRealePct,
+    socArrivoMinimo,
+    ctx: piano.ctx,
+    prezzi: { benzina: profilo.prezzoBenzina, elettricita: profilo.prezzoElettricitaCasa },
+    vincoli: piano.vincoli,
+  })
+
+  const scelto = ricerca.sottoSoglia ? null : ricerca.scelto
+  const istruzioni: IstruzioneUtente[] = (scelto?.istruzioni ?? []).map((istr, i, arr) => {
+    const { testo, dettaglio } = testoAzione(istr.azione)
+    return {
+      quando: i === 0 ? 'Adesso' : nomePunto(istr.km, waypoint),
+      km: i === 0 ? offset : istr.km + offset,
+      azione: istr.azione,
+      testo,
+      dettaglio,
+      critico: eRilascio(istr.azione, arr[i - 1]?.azione),
+      socPrevisto: scelto?.esito.profiloSoc[istr.daIndice] ?? socRealePct,
+    }
+  })
+
+  return { istruzioni, ricerca, sottotratti: residuo }
 }
 
 export { descriviAzione }
