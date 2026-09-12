@@ -45,35 +45,92 @@ db.version(4).stores({
   percorsi: 'chiave, salvatoAlle',
 })
 
+/**
+ * Stato della persistenza.
+ *
+ * IndexedDB non è sempre disponibile: un'anteprima dentro un iframe, la
+ * navigazione privata di certi browser, i dati del sito bloccati. Prima l'app
+ * restava piantata su «Carico…» per sempre, perché il primo accesso al database
+ * sollevava e nessuno raccoglieva l'errore. Adesso ogni operazione fallisce in
+ * silenzio, l'app continua a funzionare in memoria e lo dice all'utente: quello
+ * che non si può fare è far finta che i dati vengano salvati.
+ */
+let statoPersistenza: 'ignota' | 'attiva' | 'non-disponibile' = 'ignota'
+
+export function persistenzaDisponibile(): boolean {
+  return statoPersistenza !== 'non-disponibile'
+}
+
+export function persistenzaVerificata(): boolean {
+  return statoPersistenza !== 'ignota'
+}
+
+/**
+ * Quanto aspettare il database prima di dichiararlo non disponibile.
+ *
+ * Non basta raccogliere gli errori: dentro un iframe la richiesta di apertura
+ * non risponde né bene né male, resta appesa per sempre. Senza un tempo massimo
+ * l'app resterebbe su «Carico…» a tempo indeterminato, che è il difetto peggiore
+ * di tutti perché non dice niente.
+ */
+const ATTESA_MASSIMA_MS = 3000
+
+async function sicuro<T>(operazione: () => Promise<T>, seFallisce: T): Promise<T> {
+  // Una volta accertato che non si può scrivere, non ha senso riprovare a ogni
+  // schermata: si continua in memoria senza altre attese.
+  if (statoPersistenza === 'non-disponibile') return seFallisce
+
+  let scadenza: ReturnType<typeof setTimeout> | undefined
+  try {
+    const risultato = await Promise.race([
+      operazione(),
+      new Promise<never>((_, rifiuta) => {
+        scadenza = setTimeout(() => rifiuta(new Error('database non raggiungibile')), ATTESA_MASSIMA_MS)
+      }),
+    ])
+    if (statoPersistenza === 'ignota') statoPersistenza = 'attiva'
+    return risultato
+  } catch {
+    statoPersistenza = 'non-disponibile'
+    return seFallisce
+  } finally {
+    if (scadenza !== undefined) clearTimeout(scadenza)
+  }
+}
+
 export async function leggiProfilo(): Promise<Profilo | undefined> {
-  return db.profilo.get(1)
+  return sicuro(() => db.profilo.get(1), undefined)
 }
 
 export async function salvaProfilo(p: Profilo): Promise<void> {
-  await db.profilo.put({ ...p, aggiornatoAlle: new Date().toISOString() })
+  await sicuro(() => db.profilo.put({ ...p, aggiornatoAlle: new Date().toISOString() }), undefined)
 }
 
 export async function leggiBozza(): Promise<Bozza | undefined> {
-  return db.bozza.get(1)
+  return sicuro(() => db.bozza.get(1), undefined)
 }
 
 export async function salvaBozza(b: Bozza): Promise<void> {
-  await db.bozza.put(b)
+  await sicuro(() => db.bozza.put(b), undefined)
 }
 
 /** Il viaggio in corso, se c'è: è quello che l'app propone di riprendere (§5.1). */
 export async function sessioneInCorso(): Promise<Sessione | undefined> {
-  const aperte = await db.sessioni.where('stato').equals('in-corso').toArray()
-  return aperte.sort((a, b) => b.creataAlle.localeCompare(a.creataAlle))[0]
+  return sicuro(async () => {
+    const aperte = await db.sessioni.where('stato').equals('in-corso').toArray()
+    return aperte.sort((a, b) => b.creataAlle.localeCompare(a.creataAlle))[0]
+  }, undefined)
 }
 
 export async function salvaSessione(s: Sessione): Promise<void> {
-  await db.sessioni.put({ ...s, aggiornataAlle: new Date().toISOString() })
+  await sicuro(() => db.sessioni.put({ ...s, aggiornataAlle: new Date().toISOString() }), undefined)
 }
 
 export async function elencoSessioni(): Promise<Sessione[]> {
-  const tutte = await db.sessioni.toArray()
-  return tutte.sort((a, b) => b.creataAlle.localeCompare(a.creataAlle))
+  return sicuro(async () => {
+    const tutte = await db.sessioni.toArray()
+    return tutte.sort((a, b) => b.creataAlle.localeCompare(a.creataAlle))
+  }, [])
 }
 
 /**
@@ -85,9 +142,12 @@ export async function elencoSessioni(): Promise<Sessione[]> {
  * ricalcolo.
  */
 export async function percorsoInCache(chiave: string): Promise<PercorsoRisolto | undefined> {
-  return (await db.percorsi.get(chiave))?.percorso
+  return sicuro(async () => (await db.percorsi.get(chiave))?.percorso, undefined)
 }
 
 export async function salvaPercorso(chiave: string, percorso: PercorsoRisolto): Promise<void> {
-  await db.percorsi.put({ chiave, percorso, salvatoAlle: new Date().toISOString() })
+  await sicuro(
+    () => db.percorsi.put({ chiave, percorso, salvatoAlle: new Date().toISOString() }),
+    undefined,
+  )
 }

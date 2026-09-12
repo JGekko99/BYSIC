@@ -74,7 +74,7 @@ export const usePercorso = create<StatoPercorso>((set, get) => ({
 
   caricaUltimo: async () => {
     if (get().percorso) return
-    const salvato = await percorsoInCache(ULTIMO)
+    const salvato = await percorsoInCache(ULTIMO).catch(() => undefined)
     if (salvato) {
       set({
         percorso: salvato,

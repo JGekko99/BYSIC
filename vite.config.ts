@@ -5,6 +5,27 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   base: './',
+  build: {
+    /*
+     * Bundle classico (IIFE) invece che a moduli ES.
+     *
+     * Un documento a origine opaca — un iframe con sandbox senza
+     * allow-same-origin, come certe anteprime — tratta ogni richiesta come
+     * cross-origin, e uno <script type="module"> richiede CORS anche per il
+     * proprio file: viene bloccato e la pagina resta bianca senza dire niente.
+     * Uno script classico non ha quel vincolo. L'app è un chunk solo, quindi
+     * non si perde nulla in caricamento differito.
+     */
+    rollupOptions: {
+      output: {
+        format: 'iife',
+        inlineDynamicImports: true,
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

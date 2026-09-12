@@ -68,6 +68,29 @@ function RiprendiViaggio() {
   )
 }
 
+/**
+ * Avviso quando il dispositivo non lascia scrivere niente su disco: succede in
+ * un'anteprima dentro un iframe, in navigazione privata o con i dati del sito
+ * bloccati. L'app continua a funzionare, ma il viaggio in corso e lo storico
+ * spariscono chiudendo la scheda, e questo va detto prima, non scoperto dopo.
+ */
+function AvvisoPersistenza() {
+  const persistenza = useProfilo((s) => s.persistenza)
+  const caricato = useProfilo((s) => s.caricato)
+  if (!caricato || persistenza) return null
+  return (
+    <div className="mb-4 rounded-2xl border border-hev/40 bg-hev/10 px-4 py-3">
+      <p className="text-sm font-semibold text-testo">Qui non posso salvare niente</p>
+      <p className="mt-1 text-xs leading-relaxed text-attenuato">
+        Questo browser non mi lascia usare la memoria locale — succede nelle anteprime dentro una
+        pagina, in navigazione privata o con i dati del sito bloccati. L’app funziona, ma viaggio in
+        corso, storico e configurazione spariscono quando chiudi. Per usarla davvero aprila come
+        pagina sua, o installala dalla schermata Home.
+      </p>
+    </div>
+  )
+}
+
 export default function App() {
   const { profilo, caricato, carica } = useProfilo()
   const caricaSessione = useSessione((s) => s.carica)
@@ -93,6 +116,7 @@ export default function App() {
         className="mx-auto max-w-lg px-4 pt-4"
         style={{ paddingBottom: inOnboarding ? '2rem' : 'calc(5.5rem + env(safe-area-inset-bottom))' }}
       >
+        <AvvisoPersistenza />
         {!inOnboarding && <RiprendiViaggio />}
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
