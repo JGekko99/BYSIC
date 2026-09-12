@@ -47,6 +47,8 @@ npx vite preview --port 4173 &
 CHROME_BIN=/path/to/chrome BASE_URL=http://127.0.0.1:4173 node scripts/schermate.mjs
 ```
 
+`scripts/provino.mjs` ricompone scatti già presi in un'unica striscia affiancata, a scala ridotta.
+
 ## Calibrazione del modello
 
 Il modello riproduce le tabelle della SPEC molto meglio delle tolleranze richieste:
