@@ -14,7 +14,7 @@ Specifica completa: [`SPEC.md`](SPEC.md).
 |---|---|---|
 | 1 | Scheletro PWA, navigazione, onboarding auto | ✅ |
 | 2 | Modello energetico §3 + percorso manuale | ✅ |
-| 3 | Simulatore §4.2, ricerca §4.3, pannello debug | — |
+| 3 | Simulatore §4.2, ricerca §4.3, pannello debug | ✅ |
 | 4 | Checkpoint §5, modalità viaggio, persistenza | — |
 | 5 | Routing e altimetria reali §7 | — |
 | 6 | Grafici, confronti, storico | — |
@@ -71,6 +71,39 @@ Documentati e non aggiustati in silenzio:
    §13 vieta comunque la ricarica forzata fuori dai tre casi di §4.4, e «sei in coda e fa freddo» non
    è uno di quelli.
 
+## L'ottimizzatore
+
+Simulatore §4.2 con il setpoint trattato come **pavimento** e non come obiettivo, ricerca diretta
+§4.3 sui piani a 1–3 istruzioni (beam search per K=3), e DP a griglia 0,5% come limite inferiore —
+mai usato per produrre il piano, solo per misurarne la distanza dall'ottimo. Sul viaggio di
+riferimento: **2.644 piani simulati in ~14 ms**, scarto dal DP **+0,5%** contro il 2% richiesto.
+
+Tutti e sette gli scenari di §11 rientrano nel ±5%. I profili di percorso non sono nella SPEC:
+sono ricostruiti e dichiarati riga per riga in `src/model/scenari.ts`. Quattro hanno centrato il
+bersaglio al primo tentativo; tre (Somma Lombardo, Bergamo, giro montano) hanno richiesto di
+correggere il profilo, ogni volta per una ragione indipendente dal risultato atteso — la quota
+urbana reale di un A/R che attraversa Milano, il dislivello vero fra Milano e Bergamo (+130 m), e il
+fatto che un «giro montano» è una statale a 55 km/h con il dislivello concentrato, non una
+provinciale a 80 con la salita spalmata.
+
+### Il risparmio ha un tetto, ed è basso
+
+Il guadagno ottenibile spostando la batteria nel punto giusto del viaggio viene solo dallo spread di
+`g` (§3.2a). Con la batteria piena vale al massimo
+
+```
+16,8 kWh × (0,356 − 0,281) L/kWh × 1,72 €/L = 2,17 €
+```
+
+e solo se si riuscisse a spostare *tutta* la batteria dall'autostrada a 130 km/h alla coda sotto
+zero. Su viaggi reali il risparmio misurato sta fra **0,5 e 1,3 €**: su nessuno degli scenari di §11
+arriva a 1,50 €, cioè alla soglia che §4.5 fissa per dare istruzioni.
+
+Conseguenza: **le istruzioni compaiono quando a imporle è un vincolo, non la convenienza.** Riserva
+di arrivo richiesta, impossibilità di ricaricare a destinazione, sosta oltre i sette giorni. Quando
+non c'è nessun vincolo, l'app dice di non fare niente — che è la terza lettura di §4.5, solo più
+netta di quanto la SPEC sembri aspettarsi.
+
 ## Limiti dichiarati
 
 Questi non sono difetti da nascondere: sono i confini entro cui il risultato è attendibile.
@@ -91,6 +124,11 @@ Questi non sono difetti da nascondere: sono i confini entro cui il risultato è 
 - **L'auto può sovrascrivere la raccomandazione.** Il manuale dice che il veicolo regola da solo il
   setpoint SOC in base ad altitudine e temperatura. Quando succede, l'app asseconda il valore che ha
   messo l'auto invece di insistere su quello originale.
+- **La soglia di §4.5 quasi non viene mai superata dal solo risparmio.** Vedi sopra: il tetto
+  teorico è 2,17 €, quello reale sta sotto 1,30 €. La soglia in euro (1,50 €) domina quella
+  percentuale (2%) e di fatto sopprime quasi tutte le istruzioni «di convenienza». È il
+  comportamento che §13 impone, ma vale la pena sapere che la regola, con questa batteria, è più
+  severa di quanto sembri.
 - **Una costante è ancora incerta:** la soglia di SOC sotto cui l'auto abbandona la modalità EV. È
   impostata a 8% come ipotesi, non è mai stata verificata sul veicolo, ed è il singolo numero che
   sposta di più il punto di rilascio. Si corregge dalla schermata *Auto*.

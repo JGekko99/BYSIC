@@ -1,8 +1,17 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Avviso, Card, Etichetta } from '../components/ui'
+import { Avviso, Bottone, Card, Etichetta } from '../components/ui'
 import { rapportoConsumi, rapportoG, rapportoInvariante } from '../model/rapporto'
 import { CALIBRAZIONE } from '../config/vehicle'
 import { etaCatenaTermica } from '../model/catena'
+import { useProfilo } from '../store/profilo'
+import { useViaggio } from '../store/viaggio'
+import { pianifica } from '../model/pianificatore'
+import { descriviAzione } from '../model/ricerca'
+import { limiteDP } from '../model/dp'
+import { azioniCandidate } from '../model/ricerca'
+import { prepara } from '../model/simulatore'
+import { SCENARI } from '../model/scenari'
 
 const num = (v: number, d = 2) => v.toFixed(d).replace('.', ',')
 const segno = (v: number, d = 1) => (v >= 0 ? '+' : '') + num(v, d)
@@ -11,6 +20,39 @@ export default function Debug() {
   const consumi = rapportoConsumi()
   const g = rapportoG()
   const inv = rapportoInvariante()
+  const { profilo } = useProfilo()
+  const { viaggio } = useViaggio()
+  const [dp, setDp] = useState<number | null>(null)
+  const [scenari, setScenari] = useState<Array<{ nome: string; atteso: number; ottenuto: number }> | null>(null)
+
+  const piano = useMemo(() => pianifica(viaggio, profilo), [viaggio, profilo])
+
+  const calcolaDP = () => {
+    setDp(
+      limiteDP(
+        prepara(piano.sottotratti, piano.ctx),
+        azioniCandidate(piano.ctx),
+        viaggio.socPartenza,
+        piano.socArrivoMinimo,
+        piano.ctx,
+        profilo.prezzoBenzina,
+        profilo.prezzoElettricitaCasa,
+      ),
+    )
+  }
+
+  const calcolaScenari = () => {
+    setScenari(
+      SCENARI.map((s) => {
+        const p = pianifica(s.viaggio, profilo)
+        return {
+          nome: s.nome,
+          atteso: s.costoAtteso,
+          ottenuto: (p.ricerca.scelto ?? p.ricerca.riferimenti[2]).esito.costo,
+        }
+      }),
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -21,6 +63,102 @@ export default function Debug() {
           rossa, il modello è cambiato in peggio.
         </p>
       </header>
+
+      <Card
+        titolo="Ricerca del piano"
+        sottotitolo={`${piano.ricerca.valutati} piani simulati in ${num(piano.ricerca.millisecondi, 0)} ms, ${piano.ricerca.scartati} scartati dai divieti di §13.`}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {piano.ricerca.perK.map((p, i) => (
+              <div key={i} className="rounded-xl bg-superficie2 px-2 py-3">
+                <p className="text-[11px] text-attenuato">K = {i + 1}</p>
+                <p className="tabular text-base font-bold text-testo">
+                  {p ? num(p.esito.costo) : '—'}
+                </p>
+                <p className="text-[11px] text-attenuato">€</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-attenuato">
+            Scelto K = {piano.ricerca.scelto?.k ?? '—'}: il più piccolo entro l’1% dal migliore.
+          </p>
+
+          {dp === null ? (
+            <Bottone variante="secondario" onClick={calcolaDP}>
+              Calcola il limite teorico del DP
+            </Bottone>
+          ) : (
+            <div className="rounded-xl border border-bordo bg-superficie2 p-3">
+              <div className="tabular flex justify-between text-sm">
+                <span className="text-attenuato">DP esatto, griglia 0,5%</span>
+                <span className="font-bold text-testo">{num(dp)} €</span>
+              </div>
+              <div className="tabular mt-1 flex justify-between text-sm">
+                <span className="text-attenuato">Piano a {piano.ricerca.migliore?.k} istruzioni</span>
+                <span className="font-bold text-testo">
+                  {num(piano.ricerca.migliore?.esito.costo ?? 0)} €
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-attenuato">
+                Scarto{' '}
+                <strong className="text-ev">
+                  {segno(((piano.ricerca.migliore!.esito.costo - dp) / dp) * 100, 2)}%
+                </strong>
+                . La SPEC chiede meno del 2%. Il DP non viene mai usato per produrre il piano: la sua
+                policy cambierebbe ogni pochi km ed è ineseguibile.
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card
+        titolo="Piani valutati"
+        sottotitolo="I migliori venticinque, in ordine di costo."
+      >
+        <ul className="divide-y divide-bordo">
+          {piano.ricerca.migliori.map((p, i) => (
+            <li key={i} className="flex items-baseline justify-between gap-2 py-2">
+              <span className="min-w-0 truncate text-xs text-attenuato">
+                {p.istruzioni
+                  .map((x, n) => (n === 0 ? descriviAzione(x.azione) : `→ km ${Math.round(x.km)}: ${descriviAzione(x.azione)}`))
+                  .join(' ')}
+              </span>
+              <span className="tabular shrink-0 text-sm font-semibold text-testo">
+                {num(p.esito.costo)} €
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <Card titolo="§11 — scenari di regressione" sottotitolo="Tolleranza ±5% sul costo atteso.">
+        {scenari === null ? (
+          <Bottone variante="secondario" onClick={calcolaScenari}>
+            Ricalcola tutti gli scenari
+          </Bottone>
+        ) : (
+          <ul className="divide-y divide-bordo">
+            {scenari.map((s) => {
+              const scarto = ((s.ottenuto - s.atteso) / s.atteso) * 100
+              return (
+                <li key={s.nome} className="py-2.5">
+                  <p className="text-sm text-testo">{s.nome}</p>
+                  <div className="tabular mt-1 flex items-center gap-2 text-xs">
+                    <span className="text-attenuato">{num(s.atteso)} €</span>
+                    <span className="text-bordo">→</span>
+                    <span className="font-semibold text-testo">{num(s.ottenuto)} €</span>
+                    <Etichetta tono={Math.abs(scarto) < 5 ? 'ev' : 'critico'}>
+                      {segno(scarto)}%
+                    </Etichetta>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Card>
 
       <Card titolo="§3.1 — consumi" sottotitolo="Tolleranza ±10%.">
         <ul className="divide-y divide-bordo">

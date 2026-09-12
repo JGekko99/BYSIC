@@ -7,10 +7,18 @@ export type ViaggioManuale = {
   kmAutostrada: number
   velocitaAutostrada: number
   kmExtraurbano: number
+  /** Velocità media sull'extraurbano: una statale montana non è una provinciale a 80. */
+  velocitaExtraurbano?: number
   kmUrbano: number
   kmCoda: number
   salitaM: number
   discesaM: number
+  /**
+   * Su quanti km si concentra la salita (e la discesa). Non dichiararli
+   * equivale a spalmarli su metà percorso ciascuno, che è il caso più blando.
+   */
+  kmSalita?: number
+  kmDiscesa?: number
   tempC: number
   passeggeri: number
   caricoKg: number
@@ -18,15 +26,21 @@ export type ViaggioManuale = {
   socPartenza: number
 }
 
-/** Energia utilizzabile corrispondente a una percentuale di SOC. */
+/**
+ * Energia corrispondente a una percentuale di SOC, sulla capacità nominale.
+ *
+ * La percentuale di SOC mostrata dall'auto è riferita ai 18,3 kWh nominali, non
+ * all'energia utilizzabile. Le due cifre di §2 si incastrano esattamente:
+ * 18,3 kWh × (100% − 8% di soglia fisica) = 16,84 kWh, cioè i «~16,8 kWh
+ * utilizzabili da 100%». I 16,8 kWh NON sono quindi un ulteriore margine da
+ * sottrarre: sono già il risultato della soglia EV.
+ */
 export function kwhDaSoc(socPct: number, capacitaKwh = VEICOLO.batteria.capacita.valore): number {
-  const frazioneUtile = VEICOLO.batteria.utilizzabileDa100.valore / VEICOLO.batteria.capacita.valore
-  return (socPct / 100) * capacitaKwh * frazioneUtile
+  return (socPct / 100) * capacitaKwh
 }
 
 export function socDaKwh(kwh: number, capacitaKwh = VEICOLO.batteria.capacita.valore): number {
-  const frazioneUtile = VEICOLO.batteria.utilizzabileDa100.valore / VEICOLO.batteria.capacita.valore
-  return (kwh / (capacitaKwh * frazioneUtile)) * 100
+  return (kwh / capacitaKwh) * 100
 }
 
 const VELOCITA: Record<TipoStrada, number> = {
@@ -39,31 +53,45 @@ const VELOCITA: Record<TipoStrada, number> = {
 /**
  * Traduce l'inserimento manuale in tratti.
  *
- * Il dislivello dichiarato viene ripartito fra i tipi di strada in proporzione
- * ai km, e ogni tipo viene spezzato in due tratti: uno che sale e uno che
- * scende. È un'approssimazione dichiarata, non un profilo reale: serve perché
- * una discesa spalmata uniformemente non attiverebbe mai la rigenerazione,
- * e la rigenerazione è ciò che rende necessario l'headroom di §4.4.
- * Al punto 5 il profilo altimetrico reale sostituisce questa ripartizione.
+ * Il dislivello viene ripartito fra i tipi di strada in proporzione ai km, e
+ * concentrato sui km dichiarati di salita e di discesa, lasciando piano il
+ * resto. La concentrazione conta parecchio e non è un dettaglio: 900 m spalmati
+ * su 50 km danno una pendenza dell'1,8%, dove non si frena mai e l'energia
+ * potenziale se la mangia l'aria; gli stessi 900 m su 15 km danno il 6%, dove si
+ * frena, la rigenerazione lavora al 60% e il resto è perso. È esattamente il
+ * fenomeno per cui esiste l'headroom di §4.4, quindi spalmare tutto lo
+ * nasconderebbe. Al punto 5 il profilo altimetrico reale sostituisce la stima.
  */
 export function trattiDaManuale(v: ViaggioManuale): Tratto[] {
   const pezzi: Array<[TipoStrada, number, number]> = [
     ['autostrada', v.kmAutostrada, v.velocitaAutostrada],
-    ['extraurbano', v.kmExtraurbano, VELOCITA.extraurbano],
+    ['extraurbano', v.kmExtraurbano, v.velocitaExtraurbano ?? VELOCITA.extraurbano],
     ['urbano', v.kmUrbano, VELOCITA.urbano],
     ['coda', v.kmCoda, VELOCITA.coda],
   ]
   const kmTotali = pezzi.reduce((s, [, km]) => s + km, 0)
   if (kmTotali === 0) return []
 
+  let kmSalita = v.kmSalita ?? kmTotali / 2
+  let kmDiscesa = v.kmDiscesa ?? kmTotali / 2
+  if (v.salitaM <= 0) kmSalita = 0
+  if (v.discesaM <= 0) kmDiscesa = 0
+  const somma = kmSalita + kmDiscesa
+  if (somma > kmTotali && somma > 0) {
+    kmSalita = (kmSalita / somma) * kmTotali
+    kmDiscesa = (kmDiscesa / somma) * kmTotali
+  }
+
   const tratti: Tratto[] = []
   for (const [tipo, km, velocitaKmh] of pezzi) {
     if (km <= 0) continue
     const quota = km / kmTotali
-    const salita = v.salitaM * quota
-    const discesa = v.discesaM * quota
-    tratti.push({ km: km / 2, tipo, velocitaKmh, dislivelloM: salita })
-    tratti.push({ km: km / 2, tipo, velocitaKmh, dislivelloM: -discesa })
+    const kmSu = kmSalita * quota
+    const kmGiu = kmDiscesa * quota
+    const kmPiano = Math.max(0, km - kmSu - kmGiu)
+    if (kmSu > 0) tratti.push({ km: kmSu, tipo, velocitaKmh, dislivelloM: v.salitaM * quota })
+    if (kmPiano > 0) tratti.push({ km: kmPiano, tipo, velocitaKmh, dislivelloM: 0 })
+    if (kmGiu > 0) tratti.push({ km: kmGiu, tipo, velocitaKmh, dislivelloM: -v.discesaM * quota })
   }
   return tratti
 }

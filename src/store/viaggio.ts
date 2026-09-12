@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import { leggiBozza, salvaBozza } from '../db/db'
-import type { ViaggioManuale } from '../model/previsione'
+import type { DatiViaggio } from '../model/pianificatore'
 
 /** Milano→Ortisei della §4.5, come punto di partenza riconoscibile. */
-export const viaggioIniziale: ViaggioManuale = {
+export const viaggioIniziale: DatiViaggio = {
   kmAutostrada: 255,
   velocitaAutostrada: 120,
   kmExtraurbano: 46,
@@ -11,18 +11,24 @@ export const viaggioIniziale: ViaggioManuale = {
   kmCoda: 0,
   salitaM: 1450,
   discesaM: 330,
+  kmSalita: 120,
+  kmDiscesa: 60,
   tempC: 20,
   passeggeri: 2,
   caricoKg: 30,
   boxDaTetto: false,
   socPartenza: 100,
+  socRiserva: 10,
+  sostaGiorni: 3,
+  ricaricaDestinazione: 'wallbox',
+  soloHEV: false,
 }
 
 type StatoViaggio = {
-  viaggio: ViaggioManuale
+  viaggio: DatiViaggio
   caricato: boolean
   carica: () => Promise<void>
-  aggiorna: (patch: Partial<ViaggioManuale>) => void
+  aggiorna: (patch: Partial<DatiViaggio>) => void
   azzera: () => void
 }
 

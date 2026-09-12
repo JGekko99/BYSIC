@@ -95,6 +95,22 @@ export default function NuovoViaggio() {
             />
           </Campo>
           <div className="grid grid-cols-2 gap-3">
+            <Campo etichetta="Su quanti km sale" aiuto="Quanto è concentrata la salita.">
+              <Numero
+                valore={viaggio.kmSalita}
+                onChange={(v) => aggiorna({ kmSalita: v })}
+                suffisso="km"
+                segnaposto="metà"
+              />
+            </Campo>
+            <Campo etichetta="Su quanti km scende">
+              <Numero
+                valore={viaggio.kmDiscesa}
+                onChange={(v) => aggiorna({ kmDiscesa: v })}
+                suffisso="km"
+                segnaposto="metà"
+              />
+            </Campo>
             <Campo etichetta="Salita totale">
               <Numero
                 valore={viaggio.salitaM}
@@ -148,6 +164,40 @@ export default function NuovoViaggio() {
               />
             </Campo>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo etichetta="Riserva all’arrivo" aiuto="SOC minimo con cui vuoi arrivare.">
+              <Numero
+                valore={viaggio.socRiserva}
+                onChange={(v) => aggiorna({ socRiserva: v ?? 10 })}
+                min={0}
+                max={100}
+                suffisso="%"
+              />
+            </Campo>
+            <Campo etichetta="Giorni fermi a destinazione">
+              <Numero
+                valore={viaggio.sostaGiorni}
+                onChange={(v) => aggiorna({ sostaGiorni: v ?? 1 })}
+                min={0}
+                suffisso="gg"
+              />
+            </Campo>
+          </div>
+          <Campo
+            etichetta="Ricarica a destinazione"
+            aiuto="Se non puoi ricaricare, l’arrivo a SOC basso diventa un problema: a veicolo fermo il motore si accende da solo."
+          >
+            <Segmenti
+              valore={viaggio.ricaricaDestinazione}
+              opzioni={[
+                { v: 'no', etichetta: 'No' },
+                { v: 'presa-domestica', etichetta: 'Presa' },
+                { v: 'wallbox', etichetta: 'Wallbox' },
+                { v: 'dc', etichetta: 'DC' },
+              ]}
+              onChange={(v) => aggiorna({ ricaricaDestinazione: v })}
+            />
+          </Campo>
           <Campo etichetta="Box da tetto">
             <Segmenti
               valore={viaggio.boxDaTetto ? 'si' : 'no'}

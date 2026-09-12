@@ -15,11 +15,11 @@ const ctx = await browser.newContext({
   locale: 'it-IT',
 })
 const page = await ctx.newPage()
-
 const scatti = []
+
 async function scatta(nome, didascalia, y = 0) {
   await page.evaluate((v) => window.scrollTo(0, v), y)
-  await page.waitForTimeout(350)
+  await page.waitForTimeout(320)
   const file = `${OUT}/${nome}.png`
   await page.screenshot({ path: file })
   scatti.push({ file, didascalia })
@@ -27,29 +27,40 @@ async function scatta(nome, didascalia, y = 0) {
 }
 
 await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
-// passa l'onboarding
 for (let i = 0; i < 7; i++) {
   await page.getByRole('button', { name: /Avanti|Fatto, iniziamo/ }).click()
-  await page.waitForTimeout(180)
+  await page.waitForTimeout(150)
 }
 await page.waitForURL(/#\/$/)
 
-await scatta('10-viaggio-percorso', 'Nuovo viaggio — percorso per tipo di strada')
-await scatta('11-viaggio-condizioni', 'Condizioni: temperatura, SOC, carico → massa in movimento', 620)
-await scatta('12-viaggio-previsione', 'Previsione — i due riferimenti di §4.5 in euro', 1090)
-await scatta('13-viaggio-tratti', 'Dettaglio per tratto: g mostra dove la batteria vale di più', 1780)
+await page.goto(`${BASE}/#/piano`, { waitUntil: 'networkidle' })
+await scatta('20-piano-istruzioni', 'Piano — le istruzioni, con il rilascio marcato critico')
+await scatta('21-piano-grafico', 'SOC previsto lungo il percorso, con la riserva e i punti di azione', 560)
+await scatta('22-piano-confronto', 'Confronto — «obbligatoria 70% e via» risulta il peggiore', 1030)
+await scatta('23-piano-vincoli', 'Vincoli del percorso: headroom e riserva di potenza in salita', 1560)
 
 await page.goto(`${BASE}/#/debug`, { waitUntil: 'networkidle' })
-await scatta('14-debug-31', 'Verifica §3.1 — consumi ricalcolati, tolleranza ±10%')
-await scatta('15-debug-32', 'Verifica §3.2 — tabella g a 20 e 0 °C, e la riga non riconciliabile', 430)
-await scatta('16-debug-invariante', 'Invariante §11 e la contraddizione interna alla SPEC', 1080)
-await scatta('17-debug-catena', 'La catena termica calibrata, e dove smentisce §3', 1620)
+await page.getByRole('button', { name: /limite teorico del DP/ }).click()
+await page.waitForTimeout(600)
+await scatta('24-debug-dp', 'Ricerca e confronto col DP esatto: scarto misurato, non promesso')
+await scatta('25-debug-piani', 'I piani valutati, in ordine di costo', 480)
+await page.getByRole('button', { name: /Ricalcola tutti gli scenari/ }).click()
+await page.waitForTimeout(900)
+await scatta('26-debug-scenari', 'Gli scenari §11 ricalcolati dentro l’app', 1180)
+
+// viaggio sotto soglia: Bergamo
+await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
+const campi = [['Autostrada', '50'], ['Extraurbano', '4'], ['Urbano', '4'], ['Salita totale', '180'], ['Discesa totale', '50']]
+for (const [et, val] of campi) {
+  const c = page.locator('label').filter({ has: page.locator(`span:text-is("${et}")`) }).first().locator('input')
+  await c.fill(val)
+  await page.waitForTimeout(60)
+}
+await page.goto(`${BASE}/#/piano`, { waitUntil: 'networkidle' })
+await scatta('27-piano-sotto-soglia', 'Milano→Bergamo: sotto soglia, l’app dice di non fare niente')
 
 const strip = scatti
-  .map(
-    (s) =>
-      `<figure><img src="data:image/png;base64,${readFileSync(s.file).toString('base64')}"><figcaption>${s.didascalia}</figcaption></figure>`,
-  )
+  .map((s) => `<figure><img src="data:image/png;base64,${readFileSync(s.file).toString('base64')}"><figcaption>${s.didascalia}</figcaption></figure>`)
   .join('')
 const provino = await ctx.newPage()
 await provino.setContent(

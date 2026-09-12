@@ -35,6 +35,10 @@ export const VEICOLO = {
 
   batteria: {
     capacita: c(18.3, 'kWh', 'SPEC §2 — confermato dal proprietario', 'misurato'),
+    /**
+     * Coerente con la soglia fisica EV: 18,3 × (1 − 0,08) = 16,84 kWh.
+     * Serve come controllo di coerenza, non come margine da sottrarre di nuovo.
+     */
     utilizzabileDa100: c(16.8, 'kWh', 'SPEC §2', 'manuale'),
     chimica: 'LFP Blade',
     /**
@@ -142,6 +146,11 @@ export const EFFICIENZA = {
   sogliaPresaDiretta: c(65, 'km/h', 'SPEC §3', 'manuale'),
   /** Potenza media di ricarica forzata in HEV+obbligatoria sotto setpoint (SPEC §4.2). */
   potenzaRicaricaForzata: c(5, 'kW', 'SPEC §4.2', 'stimato'),
+  /**
+   * Livello a cui la sospensione intelligente smette di scaricare la batteria
+   * e passa in charge-sustaining (SPEC §4.2: «scarica fino a ~22%»).
+   */
+  sogliaIntelligente: c(22, '% SOC', 'SPEC §4.2', 'stimato'),
 } as const
 
 /**

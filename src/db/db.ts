@@ -1,8 +1,8 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { Profilo } from '../types'
-import type { ViaggioManuale } from '../model/previsione'
+import type { DatiViaggio } from '../model/pianificatore'
 
-export type Bozza = ViaggioManuale & { id: 1 }
+export type Bozza = DatiViaggio & { id: 1 }
 
 /**
  * Persistenza locale (SPEC §5.1: IndexedDB).
