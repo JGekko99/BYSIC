@@ -27,8 +27,12 @@ export const useSessione = create<StatoStore>((set, get) => ({
   caricato: false,
 
   carica: async () => {
-    const [inCorso, storico] = await Promise.all([sessioneInCorso(), elencoSessioni()])
-    set({ sessione: inCorso ?? null, storico, caricato: true })
+    try {
+      const [inCorso, storico] = await Promise.all([sessioneInCorso(), elencoSessioni()])
+      set({ sessione: inCorso ?? null, storico, caricato: true })
+    } catch {
+      set({ sessione: null, storico: [], caricato: true })
+    }
   },
 
   avvia: async (s) => {

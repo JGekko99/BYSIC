@@ -274,6 +274,12 @@ Questi non sono difetti da nascondere: sono i confini entro cui il risultato è 
   percentuale (2%) e di fatto sopprime quasi tutte le istruzioni «di convenienza». È il
   comportamento che §13 impone, ma vale la pena sapere che la regola, con questa batteria, è più
   severa di quanto sembri.
+- **Senza memoria locale l'app gira, ma non conserva niente.** IndexedDB non è sempre disponibile:
+  in un'anteprima dentro un iframe, in navigazione privata, con i dati del sito bloccati. In quei
+  casi la richiesta al database può restare appesa senza rispondere né bene né male, quindi non
+  basta raccogliere gli errori: c'è un tempo massimo di 3 secondi, oltre il quale l'app continua in
+  memoria e lo dichiara in cima alla schermata. Viaggio in corso, storico e configurazione spariscono
+  chiudendo la scheda.
 - **Una costante è ancora incerta:** la soglia di SOC sotto cui l'auto abbandona la modalità EV. È
   impostata a 8% come ipotesi, non è mai stata verificata sul veicolo, ed è il singolo numero che
   sposta di più il punto di rilascio. Si corregge dalla schermata *Auto*.

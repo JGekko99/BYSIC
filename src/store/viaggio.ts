@@ -36,8 +36,12 @@ export const useViaggio = create<StatoViaggio>((set, get) => ({
   viaggio: viaggioIniziale,
   caricato: false,
   carica: async () => {
-    const b = await leggiBozza()
-    set({ viaggio: b ? { ...viaggioIniziale, ...b } : viaggioIniziale, caricato: true })
+    try {
+      const b = await leggiBozza()
+      set({ viaggio: b ? { ...viaggioIniziale, ...b } : viaggioIniziale, caricato: true })
+    } catch {
+      set({ viaggio: viaggioIniziale, caricato: true })
+    }
   },
   aggiorna: (patch) => {
     const viaggio = { ...get().viaggio, ...patch }
