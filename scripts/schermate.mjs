@@ -17,7 +17,8 @@ const ctx = await browser.newContext({
 const page = await ctx.newPage()
 
 const scatti = []
-async function scatta(nome, didascalia) {
+async function scatta(nome, didascalia, y = 0) {
+  await page.evaluate((v) => window.scrollTo(0, v), y)
   await page.waitForTimeout(350)
   const file = `${OUT}/${nome}.png`
   await page.screenshot({ path: file })
@@ -25,37 +26,25 @@ async function scatta(nome, didascalia) {
   console.log('·', nome)
 }
 
-async function avanti() {
-  await page.getByRole('button', { name: /Avanti|Fatto, iniziamo/ }).click()
-  await page.waitForTimeout(250)
-}
-
 await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
-await scatta('01-onboarding-intro', 'Onboarding 1/7 — cosa fa l’app e cosa non promette')
-await avanti()
-await scatta('02-onboarding-batteria', 'Onboarding 2/7 — la soglia EV è l’unico numero non confermato')
-await avanti()
-await scatta('03-onboarding-slider', 'Onboarding 3/7 — range dello slider, non hardcodato')
-await avanti()
-await avanti()
-await scatta('04-onboarding-prezzi', 'Onboarding 5/7 — prezzi e break-even della ricarica')
-await avanti()
-await avanti()
-await scatta('05-onboarding-consumi', 'Onboarding 7/7 — consumi reali, opzionali')
-await avanti() // completa e va alla home
-
+// passa l'onboarding
+for (let i = 0; i < 7; i++) {
+  await page.getByRole('button', { name: /Avanti|Fatto, iniziamo/ }).click()
+  await page.waitForTimeout(180)
+}
 await page.waitForURL(/#\/$/)
-await scatta('06-home', 'Home — stato della costruzione')
 
-await page.goto(`${BASE}/#/piano`, { waitUntil: 'networkidle' })
-await scatta('07-piano', 'Piano — segnaposto onesto, dice cosa arriva al punto 3')
+await scatta('10-viaggio-percorso', 'Nuovo viaggio — percorso per tipo di strada')
+await scatta('11-viaggio-condizioni', 'Condizioni: temperatura, SOC, carico → massa in movimento', 620)
+await scatta('12-viaggio-previsione', 'Previsione — i due riferimenti di §4.5 in euro', 1090)
+await scatta('13-viaggio-tratti', 'Dettaglio per tratto: g mostra dove la batteria vale di più', 1780)
 
-await page.goto(`${BASE}/#/auto`, { waitUntil: 'networkidle' })
-await scatta('08-auto', 'Auto — valori confermati e percorso menu infotainment')
-await page.evaluate(() => window.scrollTo(0, 1150))
-await scatta('09-costanti', 'Auto — le 60 costanti con fonte e confidenza')
+await page.goto(`${BASE}/#/debug`, { waitUntil: 'networkidle' })
+await scatta('14-debug-31', 'Verifica §3.1 — consumi ricalcolati, tolleranza ±10%')
+await scatta('15-debug-32', 'Verifica §3.2 — tabella g a 20 e 0 °C, e la riga non riconciliabile', 430)
+await scatta('16-debug-invariante', 'Invariante §11 e la contraddizione interna alla SPEC', 1080)
+await scatta('17-debug-catena', 'La catena termica calibrata, e dove smentisce §3', 1620)
 
-// provino unico
 const strip = scatti
   .map(
     (s) =>
@@ -69,9 +58,8 @@ await provino.setContent(
    <style>figure{margin:0;width:390px}img{width:390px;border-radius:14px;border:1px solid #2a3750;display:block}
    figcaption{padding:10px 4px 0;text-align:center}</style></body>`,
 )
-await provino.setViewportSize({ width: scatti.length * 408 + 22, height: 960 })
+await provino.setViewportSize({ width: scatti.length * 408 + 22, height: 980 })
 await provino.waitForTimeout(300)
 await provino.screenshot({ path: `${OUT}/00-provino.png` })
 console.log('provino:', `${OUT}/00-provino.png`)
-
 await browser.close()

@@ -7,6 +7,7 @@ import Piano from './screens/Piano'
 import ModalitaViaggio from './screens/ModalitaViaggio'
 import Storico from './screens/Storico'
 import Auto from './screens/Auto'
+import Debug from './screens/Debug'
 
 const VOCI = [
   { to: '/', etichetta: 'Viaggio', icona: '🧭' },
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="/guida" element={<ModalitaViaggio />} />
           <Route path="/storico" element={<Storico />} />
           <Route path="/auto" element={<Auto />} />
+          <Route path="/debug" element={<Debug />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

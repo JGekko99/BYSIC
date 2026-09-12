@@ -213,3 +213,51 @@ export const MENU = {
   feedbackEnergia: 'Impostazione intensità feedback energia',
   avvisoSicurezza: 'Esegui da fermo o fai eseguire al passeggero.',
 } as const
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Calibrazione dedotta dalle tabelle §3.1 e §3.2
+//
+// I valori qui sotto NON sono inventati: sono ricavati risolvendo il modello
+// contro le tabelle della SPEC, che §0 e §11 dichiarano vincolanti.
+// Il procedimento è in `src/model/catena.ts` e verificato in `calibrazione.test.ts`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const CALIBRAZIONE = {
+  /**
+   * Massa a cui è stata costruita la tabella §3.1.
+   * Non è dichiarata nella SPEC: 2.100 kg è l'unico valore che riproduce tutte
+   * e tre le righe EV entro lo 0,3% (a 1.950 kg lo scarto è −5,4% / −3,0% / −2,1%).
+   * Corrisponde alla massa a vuoto più due persone e bagaglio.
+   */
+  massa: c(2100, 'kg', 'dedotta: riproduce §3.1 entro 0,3%', 'stimato'),
+
+  /**
+   * Efficienza fuel → energia ausiliaria in HEV.
+   * Ricavata imponendo che l'efficienza di catena risulti la stessa a 20 °C e a
+   * 0 °C su tutte le righe di §3.2: l'ottimo è netto e il residuo è 0,0045.
+   * È la validazione più forte che ho del modello — sei regimi per due
+   * temperature, dodici dati, e la catena esce indipendente dalla temperatura.
+   */
+  etaAusiliari: c(0.299, '—', 'calibrato su §3.2 (20 °C e 0 °C)', 'stimato'),
+
+  /**
+   * Efficienza della catena termica in funzione della velocità.
+   *
+   * Conferma i valori di §3 alle estremità: 0,311 a bassa velocità ≈ «serie
+   * 0,312», e 0,322–0,345 a 110–130 km/h ≈ «presa diretta 0,323–0,344».
+   * Li smentisce in mezzo: a 80 km/h la catena reale vale 0,299, PEGGIO della
+   * serie. Lettura fisica: a 80 in presa diretta il termico lavora a carico
+   * basso, fuori dal punto di BTE ottimo; in città la modalità serie lo tiene
+   * al suo punto migliore. Per questo la §3.2 dà g più alto a 80 che a 30.
+   *
+   * Interpolazione lineare fra i nodi, costante agli estremi.
+   */
+  catenaTermica: [
+    { vKmh: 10, eta: 0.3107 },
+    { vKmh: 30, eta: 0.3078 },
+    { vKmh: 80, eta: 0.2989 },
+    { vKmh: 110, eta: 0.3223 },
+    { vKmh: 120, eta: 0.333 },
+    { vKmh: 130, eta: 0.3451 },
+  ] as ReadonlyArray<{ vKmh: number; eta: number }>,
+} as const

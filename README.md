@@ -13,7 +13,7 @@ Specifica completa: [`SPEC.md`](SPEC.md).
 | punto | contenuto | stato |
 |---|---|---|
 | 1 | Scheletro PWA, navigazione, onboarding auto | ✅ |
-| 2 | Modello energetico §3 + percorso manuale | — |
+| 2 | Modello energetico §3 + percorso manuale | ✅ |
 | 3 | Simulatore §4.2, ricerca §4.3, pannello debug | — |
 | 4 | Checkpoint §5, modalità viaggio, persistenza | — |
 | 5 | Routing e altimetria reali §7 | — |
@@ -34,6 +34,42 @@ Screenshot a viewport telefono:
 npx vite preview --port 4173 &
 CHROME_BIN=/path/to/chrome BASE_URL=http://127.0.0.1:4173 node scripts/schermate.mjs
 ```
+
+## Calibrazione del modello
+
+Il modello riproduce le tabelle della SPEC molto meglio delle tolleranze richieste:
+§3.1 entro **±0,4%** (tolleranza ±10%) e 13 celle su 14 di §3.2 entro **±0,006 L/kWh**
+(tolleranza ±0,01). Il pannello *Verifica del modello* nell'app le ricalcola a ogni avvio.
+
+Per arrivarci sono stati ricavati due parametri che la SPEC non dichiara — entrambi in
+`CALIBRAZIONE` dentro `src/config/vehicle.ts`, con il procedimento documentato:
+
+- **massa di calibrazione 2.100 kg**: l'unica che riproduce le tre righe EV di §3.1 entro lo 0,3%
+  (a 1.950 kg lo scarto è −5,4% / −3,0% / −2,1%);
+- **efficienza degli ausiliari in HEV 0,299**: ricavata imponendo che l'efficienza di catena
+  risulti la stessa a 20 °C e a 0 °C su tutte le righe di §3.2. È la verifica più forte
+  disponibile — dodici dati indipendenti, e la catena esce piatta in temperatura.
+
+### Tre punti in cui la SPEC non torna con sé stessa
+
+Documentati e non aggiustati in silenzio:
+
+1. **§3 dice «presa diretta sopra 65 km/h: 0,323–0,344».** Vero a 110–130 km/h, dove la curva
+   calibrata dà 0,322–0,345. Falso a 80 km/h, dove le tabelle §3.1/§3.2 impongono **0,299**, cioè
+   peggio della modalità serie. È anche il motivo per cui §3.2 attribuisce a 80 km/h un `g` più alto
+   che a 30. Lettura fisica: a 80 in presa diretta il termico lavora a carico basso, fuori dal punto
+   di BTE ottimo.
+2. **La riga «Statale montana 55» di §3.2 non è riconciliabile con le altre sei.** La SPEC non ne
+   dichiara né la velocità né il `k_ciclo`, e il suo salto fra 20 e 0 °C (+0,008) è più piccolo di
+   quello dell'extraurbano 80 (+0,010) pur avendo più tempo di percorrenza per km, quindi più
+   ausiliari. Risolvendo il modello su quelle due celle servirebbe un'energia alle ruote di
+   26,8 kWh/100 km, cioè `k_ciclo ≈ 2,9`: più della coda. La riga è tenuta fuori dalla calibrazione
+   e lo scarto è mostrato nel pannello di verifica.
+3. **L'invariante economico di §11 è violato dalla SPEC stessa.** La ricarica forzata costa
+   `1/(0,318 × 8,94) = 0,3518 L/kWh`, mentre §3.2 dichiara `max(g) = 0,356` (coda a 0 °C). Lo scarto
+   è 0,004 L/kWh, l'1,2%; §3.2b lo ammette scrivendo «non c'è margine». Nessuna conseguenza pratica:
+   §13 vieta comunque la ricarica forzata fuori dai tre casi di §4.4, e «sei in coda e fa freddo» non
+   è uno di quelli.
 
 ## Limiti dichiarati
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Avviso, Bottone, Campo, Card, Etichetta, Numero, Segmenti } from '../components/ui'
 import { useProfilo } from '../store/profilo'
 import { CONTEGGIO_CONFIDENZA, COSTANTI } from '../config/elenco'
@@ -137,6 +138,15 @@ export default function Auto() {
             indietro di diverse decine di km.
           </Avviso>
         </div>
+      </Card>
+
+      <Card
+        titolo="Verifica del modello"
+        sottotitolo="Le tabelle §3.1 e §3.2 della SPEC ricalcolate dal modello in esecuzione."
+      >
+        <Link to="/debug" className="block text-sm font-medium text-marchio">
+          Apri il pannello di verifica →
+        </Link>
       </Card>
 
       <Card titolo="Azzera">
