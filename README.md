@@ -17,7 +17,7 @@ Specifica completa: [`SPEC.md`](SPEC.md).
 | 3 | Simulatore §4.2, ricerca §4.3, pannello debug | ✅ |
 | 4 | Checkpoint §5, modalità viaggio, persistenza | ✅ |
 | 5 | Routing e altimetria reali §7 | ✅ |
-| 6 | Grafici, confronti, storico | — |
+| 6 | Grafici, confronti, storico | ✅ |
 
 ## Installare l'app sul telefono
 
@@ -55,6 +55,47 @@ CHROME_BIN=/path/to/chrome BASE_URL=http://127.0.0.1:4173 node scripts/schermate
 ```
 
 `scripts/provino.mjs` ricompone scatti già presi in un'unica striscia affiancata, a scala ridotta.
+
+## Confronti e storico
+
+Il confronto fra i piani è a barre orizzontali con i **baffi di incertezza**: ±10% sul consumo, che
+è la precisione dichiarata del modello. Dove i baffi di due piani si sovrappongono, la differenza
+fra loro è più piccola dell'errore — l'ordine resta valido, la cifra esatta no. Sul viaggio di
+riferimento i tre piani migliori si sovrappongono quasi del tutto, ed è giusto che si veda.
+
+Alla chiusura di un viaggio l'app chiede i **litri del pieno** e il **SOC di arrivo**. Da lì esce
+l'errore del modello, che lo storico riassume in tre cifre:
+
+- **scarto medio assoluto** — da confrontare col ±10% dichiarato da §11;
+- **distorsione**, con il segno — dice se il modello sbaglia sempre dalla stessa parte. È la
+  differenza che conta: una distorsione sistematica si corregge, il rumore no;
+- **quanti viaggi stanno nel ±10%**.
+
+Con meno di tre viaggi l'app lo dice esplicitamente, invece di far finta che tre cifre su un
+campione di uno vogliano dire qualcosa.
+
+### Backtesting
+
+`src/model/backtest.ts` calcola l'errore del modello su un registro di viaggi reali (§11):
+
+```bash
+REGISTRO=viaggi.json npm run backtest
+```
+
+Il registro è un array di viaggi con il percorso com'era e i due numeri che si sanno solo a
+posteriori: litri entrati nel serbatoio e SOC di arrivo. Il formato è documentato in
+`src/model/esegui.backtest.ts`. Il confronto si fa col piano che l'utente avrebbe davvero eseguito:
+se l'app non dà istruzioni, il riferimento è «guido e basta», non l'ottimo teorico che nessuno
+avrebbe messo in pratica.
+
+### Sui grafici
+
+§10 indicava Recharts. I grafici sono invece **SVG scritti a mano**, per due motivi: sono quattro
+grafici semplici (SOC/km, profilo altimetrico, confronto, previsto contro reale) e una libreria
+aggiungerebbe circa 100 kB a una PWA che deve funzionare offline; e i colori delle serie sono
+verificati contro il fondo scuro dell'app — banda di luminosità, croma, separazione per daltonismo
+e contrasto — cosa che con un tema di libreria andrebbe rifatta comunque. Se servisse un grafico
+interattivo complesso, Recharts resta la strada.
 
 ## Calibrazione del modello
 

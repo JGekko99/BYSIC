@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Avviso, Bottone, Card, Etichetta, Numero } from '../components/ui'
+import { Avviso, Bottone, Campo, Card, Etichetta, Numero } from '../components/ui'
 import { useProfilo } from '../store/profilo'
 import { useViaggio } from '../store/viaggio'
 import { useSessione } from '../store/sessione'
@@ -34,6 +34,8 @@ export default function ModalitaViaggio() {
   const [spuntate, setSpuntate] = useState<Set<number>>(new Set())
   const [ricalcolo, setRicalcolo] = useState<IstruzioneUtente[] | null>(null)
   const [kmManuali, setKmManuali] = useState<number | undefined>()
+  const [litriEffettivi, setLitriEffettivi] = useState<number | undefined>()
+  const [kmReali, setKmReali] = useState<number | undefined>()
 
   const { stato: gps } = usePosizione(sessione !== null)
   const armatoPrecedente = useRef<string | null>(null)
@@ -81,6 +83,19 @@ export default function ModalitaViaggio() {
   function conferma(stato: 'fatto' | 'saltato') {
     if (!sessione || !corrente) return
     const divergenza = sessioneStore.chiudiCheckpoint(corrente.id, stato, socInserito)
+
+    if (corrente.tipo === 'arrivo' && stato === 'fatto') {
+      void sessioneStore.concludi({
+        socFinale: socInserito,
+        litriEffettivi,
+        kmReali: kmReali ?? sessione.kmPercorsi,
+      })
+      setSocInserito(undefined)
+      setLitriEffettivi(undefined)
+      setKmReali(undefined)
+      return
+    }
+
     if (setpointAuto !== undefined) {
       sessioneStore.registraSetpointCorretto(corrente.id, setpointAuto)
     }
@@ -293,6 +308,31 @@ export default function ModalitaViaggio() {
                 )}
             </div>
 
+            {corrente.tipo === 'arrivo' && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-testo">
+                  Chiudi il viaggio con i numeri veri
+                </p>
+                <p className="text-xs leading-snug text-attenuato">
+                  Sono l’unico modo di sapere se il modello vale qualcosa. Se non hai fatto
+                  rifornimento adesso, lascia vuoto: meglio niente che una cifra inventata.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Campo etichetta="Litri per il pieno">
+                    <Numero
+                      valore={litriEffettivi}
+                      onChange={setLitriEffettivi}
+                      step={0.01}
+                      suffisso="L"
+                    />
+                  </Campo>
+                  <Campo etichetta="Km del viaggio">
+                    <Numero valore={kmReali} onChange={setKmReali} suffisso="km" segnaposto={num(sessione.kmPercorsi)} />
+                  </Campo>
+                </div>
+              </div>
+            )}
+
             {corrente.azione?.modo === 'HEV' &&
               corrente.azione.sospensione === 'obbligatoria' && (
                 <div>
@@ -324,7 +364,9 @@ export default function ModalitaViaggio() {
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <Bottone onClick={() => conferma('fatto')}>Fatto ✓</Bottone>
+                <Bottone onClick={() => conferma('fatto')}>
+                  {corrente.tipo === 'arrivo' ? 'Chiudi il viaggio' : 'Fatto ✓'}
+                </Bottone>
               </div>
               {corrente.tipo !== 'arrivo' && (
                 <div className="w-1/3">

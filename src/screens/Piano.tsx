@@ -7,6 +7,7 @@ import { descriviAzione } from '../model/ricerca'
 import Mappa from '../components/Mappa'
 import ProfiloAltimetrico from '../components/ProfiloAltimetrico'
 import { costruisciCheckpoint } from '../model/checkpoint'
+import Confronto from '../components/Confronto'
 import { PIANIFICAZIONE } from '../config/vehicle'
 
 const eur = (v: number) => v.toFixed(2).replace('.', ',') + ' €'
@@ -154,50 +155,31 @@ export default function Piano() {
         titolo="Confronto"
         sottotitolo="Quanto costerebbe il viaggio con le alternative, incluse quelle sbagliate."
       >
-        <ul className="space-y-2">
-          {[
+        <Confronto
+          voci={[
             ...(scelto && !piano.nessunaIstruzione
-              ? [{ etichetta: 'Piano proposto', p: scelto, mio: true }]
+              ? [
+                  {
+                    nome: 'Piano proposto',
+                    costo: scelto.esito.costo,
+                    litri: scelto.esito.litri,
+                    kwh: scelto.esito.kwhUsati,
+                    socArrivo: scelto.esito.socArrivoPct,
+                    proposto: true,
+                  },
+                ]
               : []),
-            ...riferimenti.map((p) => ({ etichetta: p.etichetta!, p, mio: false })),
-          ]
-            .sort((a, b) => a.p.esito.costo - b.p.esito.costo)
-            .map(({ etichetta, p, mio }) => (
-              <li
-                key={etichetta}
-                className={`rounded-xl border p-3 ${
-                  mio
-                    ? 'border-ev/40 bg-ev/5'
-                    : p.valido
-                      ? 'border-bordo bg-superficie2'
-                      : 'border-critico/30 bg-critico/5'
-                }`}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-testo">{etichetta}</p>
-                    <p className="tabular text-xs text-attenuato">
-                      {num(p.esito.litri)} L · {num(p.esito.kwhUsati, 1)} kWh · arrivo{' '}
-                      {num(p.esito.socArrivoPct, 0)}%
-                    </p>
-                  </div>
-                  <span className="tabular shrink-0 font-bold text-testo">{eur(p.esito.costo)}</span>
-                </div>
-                {!p.valido && (
-                  <p className="mt-1.5 text-xs leading-snug text-critico">
-                    Non ammissibile: {p.motivoScarto}.
-                  </p>
-                )}
-              </li>
-            ))}
-        </ul>
-        <div className="mt-3">
-          <Avviso>
-            Banda di incertezza dichiarata: il modello punta a <strong>±10%</strong> sul consumo, e
-            non legge nulla dall’auto. Le differenze fra le righe qui sopra sono più piccole di
-            quell’incertezza: sono affidabili come <em>ordine</em>, non come cifra esatta.
-          </Avviso>
-        </div>
+            ...riferimenti.map((p) => ({
+              nome: p.etichetta!,
+              costo: p.esito.costo,
+              litri: p.esito.litri,
+              kwh: p.esito.kwhUsati,
+              socArrivo: p.esito.socArrivoPct,
+              antiPattern: p.etichetta!.startsWith('«Obbligatoria'),
+              motivoScarto: p.valido ? undefined : p.motivoScarto,
+            })),
+          ].sort((a, b) => a.costo - b.costo)}
+        />
       </Card>
 
       {piano.vincoli.length > 0 && (

@@ -100,6 +100,61 @@ for (let i = 0; i < 7; i++) {
 }
 await page.waitForURL(/#\/$/)
 
+if (SOLO === 'storico') {
+  // Un viaggio completo, portato fino al consuntivo: è l'unico modo di vedere
+  // lo storico con dei numeri veri dentro.
+  await page.goto(`${BASE}/#/guida`, { waitUntil: 'networkidle' })
+  const forse = async (nome) => {
+    const b = page.getByRole('button', { name: nome })
+    if (await b.count()) await b.first().click()
+    await page.waitForTimeout(200)
+  }
+  await forse('Ho capito')
+  await forse('Inizia')
+  await page.waitForTimeout(400)
+
+  // percorre tutti i checkpoint con letture di SOC plausibili
+  const letture = [98, 71, 54, 38, 22, 12]
+  for (let i = 0; i < letture.length; i++) {
+    const caselle = page.locator('input[type=checkbox]')
+    for (let k = 0; k < (await caselle.count()); k++) await caselle.nth(k).check()
+    const campi = page.locator('input[type=number]')
+    if (await campi.count()) await campi.first().fill(String(letture[i]))
+    await page.waitForTimeout(200)
+    const chiudi = page.getByRole('button', { name: /Chiudi il viaggio/ })
+    if (await chiudi.count()) {
+      const numerici = page.locator('input[type=number]')
+      if ((await numerici.count()) >= 3) {
+        await numerici.nth(1).fill('21.4')
+        await numerici.nth(2).fill('317')
+      }
+      await page.waitForTimeout(200)
+      await scatta('50-arrivo-consuntivo', 'All’arrivo: litri del pieno e km veri')
+      await chiudi.click()
+      break
+    }
+    const fatto = page.getByRole('button', { name: 'Fatto ✓' })
+    if (!(await fatto.count())) break
+    await fatto.first().click()
+    await page.waitForTimeout(350)
+    if (i === 0) await scatta('49-sono-qui', 'Avanzamento fra i checkpoint')
+    const sonoQui = page.getByRole('button', { name: /Sono qui/ })
+    if (await sonoQui.count()) { await sonoQui.click(); await page.waitForTimeout(300) }
+  }
+  await page.waitForTimeout(600)
+
+  await page.goto(`${BASE}/#/storico`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(600)
+  await scatta('51-storico-errore', 'Errore del modello: scarto medio, distorsione, quanti nel ±10%')
+  const riga = page.locator('li button').first()
+  if (await riga.count()) { await riga.click(); await page.waitForTimeout(400) }
+  await scatta('52-storico-dettaglio', 'Previsto contro reale, e le letture ai checkpoint', 320)
+
+  await page.goto(`${BASE}/#/piano`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(500)
+  await scatta('53-confronto-banda', 'Confronto con la banda di incertezza del ±10%', 1150)
+}
+
 if (SOLO === 'percorso') {
   await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' })
   await scatta('40-percorso-vuoto', 'Inserimento del percorso: indirizzi, non chilometri')

@@ -12,6 +12,15 @@
   --color-critico: #fb7185;
   --color-marchio: #60a5fa;
 
+  /*
+   * Colori delle serie nei grafici, distinti dagli accenti dell'interfaccia.
+   * Sono un passo più scuri perché devono stare su una superficie scura come
+   * marchi pieni, non come testo: verificati per banda di luminosità, croma,
+   * separazione per daltonismo e contrasto sul fondo #141d2e.
+   */
+  --color-serie-previsto: #4f93e8;
+  --color-serie-reale: #1fae7e;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
